@@ -3,6 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Le pide al navegador que revalide este HTML en cada visita en vez
+       de reusar una copia vieja de la caché. No hay cookies ni
+       localStorage en este proyecto: lo que se percibía como "versión
+       vieja" es caché HTTP normal, no datos guardados del navegador. -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>Music Visualizer — Windows Media Player Style</title>
   <link rel="stylesheet" href="css/style.css?v=1" />
 </head>
