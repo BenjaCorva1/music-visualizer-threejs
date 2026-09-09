@@ -794,7 +794,7 @@ function createSacredBodyMode() {
   scene.add(mandalaSky);
 
   scene.add(new THREE.AmbientLight(0x332244, 1.2));
-  const rimLight = new THREE.PointLight(0xaa88ff, 40, 30);
+  const rimLight = new THREE.PointLight(0xaa88ff, 18, 30);
   rimLight.position.set(0, 0.5, 5);
   scene.add(rimLight);
 
@@ -810,12 +810,12 @@ function createSacredBodyMode() {
     { y: 2.4, hue: 0.82 }, // corona
   ];
   const chakras = CHAKRAS.map((c) => {
-    const baseColor = new THREE.Color().setHSL(c.hue, 0.85, 0.55);
+    const baseColor = new THREE.Color().setHSL(c.hue, 0.7, 0.4);
     const mat = new THREE.MeshStandardMaterial({
       color: baseColor,
-      emissive: baseColor.clone().multiplyScalar(0.5),
+      emissive: baseColor.clone().multiplyScalar(0.15),
       metalness: 0.3,
-      roughness: 0.4,
+      roughness: 0.5,
     });
     const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.32, 24, 24), mat);
     mesh.position.set(0, c.y, 0);
@@ -891,6 +891,71 @@ function createSacredBodyMode() {
   const rays = new THREE.LineSegments(rayGeo, rayMat);
   scene.add(rays);
 
+  // ---- Ojos avanzando hacia el centro: un motivo recurrente en la obra
+  // de Alex Grey. Nacen lejos, en un punto al azar de una esfera, y
+  // viajan en línea recta hacia el origen; al llegar, renacen en otro
+  // punto lejano — dando la sensación de un túnel de ojos que se acerca.
+  function eyeTexture() {
+    const size = 128;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(size / 2, size / 2, size * 0.46, size * 0.28, 0, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+    ctx.fillStyle = "#f2edff";
+    ctx.fillRect(0, 0, size, size);
+    const iris = ctx.createRadialGradient(size / 2, size / 2, 2, size / 2, size / 2, size * 0.18);
+    iris.addColorStop(0, "#caa6ff");
+    iris.addColorStop(1, "#4a2680");
+    ctx.fillStyle = iris;
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size * 0.17, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#0a0612";
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size * 0.07, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = "#1a0f2e";
+    ctx.lineWidth = size * 0.03;
+    ctx.beginPath();
+    ctx.ellipse(size / 2, size / 2, size * 0.46, size * 0.28, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }
+
+  const EYE_COUNT = 22;
+  const eyeMap = eyeTexture();
+  const eyes = [];
+
+  function spawnEye(e) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(THREE.MathUtils.randFloatSpread(2));
+    e.dir.set(Math.sin(phi) * Math.cos(theta), Math.sin(phi) * Math.sin(theta), Math.cos(phi));
+    e.radius = 14 + Math.random() * 8;
+    e.sprite.position.copy(e.dir).multiplyScalar(e.radius);
+  }
+
+  for (let i = 0; i < EYE_COUNT; i++) {
+    const mat = new THREE.SpriteMaterial({ map: eyeMap, transparent: true, depthWrite: false, opacity: 0.9 });
+    const sprite = new THREE.Sprite(mat);
+    const size = 0.6 + Math.random() * 0.5;
+    sprite.scale.set(size * 1.6, size, 1);
+    scene.add(sprite);
+    const e = { sprite, dir: new THREE.Vector3(), radius: 0, speed: 1.8 + Math.random() * 1.6 };
+    spawnEye(e);
+    // Adelantar cada uno un tramo al azar para que no lleguen todos juntos.
+    e.radius -= Math.random() * 14;
+    e.sprite.position.copy(e.dir).multiplyScalar(e.radius);
+    eyes.push(e);
+  }
+
   function update(dt, t, freqData, avg, bass, playing) {
     mandalaUniforms.uTime.value = t;
 
@@ -904,7 +969,7 @@ function createSacredBodyMode() {
         value = 0.1 + 0.05 * Math.sin(t * 1.5 + i);
       }
       c.mesh.scale.setScalar(1 + value * 1.6);
-      c.mat.emissive.copy(c.baseColor).multiplyScalar(0.4 + value * 1.2);
+      c.mat.emissive.copy(c.baseColor).multiplyScalar(0.1 + value * 0.45);
       return value;
     });
 
@@ -927,8 +992,19 @@ function createSacredBodyMode() {
     aura.scale.z = 1.15 + energy * 0.15;
 
     halo.rotation.z += dt * 0.3;
-    halo.material.opacity = 0.35 + chakraLevels[6] * 0.5;
-    rimLight.intensity = 30 + energy * 200;
+    halo.material.opacity = 0.2 + chakraLevels[6] * 0.3;
+    rimLight.intensity = 12 + energy * 90;
+
+    const eyeSpeed = 1 + energy * 2.2 + bass * 1.2;
+    eyes.forEach((e) => {
+      e.radius -= e.speed * eyeSpeed * dt;
+      if (e.radius < 0.6) {
+        spawnEye(e);
+        return;
+      }
+      e.sprite.position.copy(e.dir).multiplyScalar(e.radius);
+      e.sprite.material.opacity = THREE.MathUtils.smoothstep(e.radius, 0.6, 5) * 0.9;
+    });
   }
 
   return {

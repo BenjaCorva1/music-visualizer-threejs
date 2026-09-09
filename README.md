@@ -53,11 +53,13 @@ Seleccionables desde la pestaña **"Visualizaciones"** del panel lateral
    a punta. Es el modo por defecto al abrir la app.
 6. **Cuerpo de energía (Alex Grey)** — homenaje a los "Sacred Mirrors"
    de [Alex Grey](https://en.wikipedia.org/wiki/Alex_Grey): una figura
-   translúcida con sus 7 chakras a la vista, cada uno leyendo una banda
-   de frecuencia distinta (como un ecualizador vertical) e irradiando
-   líneas de energía. El mandala de fondo, con la misma lógica que el
-   fractal del modo cósmico, corre solo y se mantiene tenue para nunca
-   tapar la figura.
+   translúcida con sus 7 chakras a la vista (atenuados a propósito, sin
+   brillo protagónico), cada uno leyendo una banda de frecuencia
+   distinta e irradiando líneas de energía. Un motivo recurrente de su
+   obra: ojos que nacen lejos y avanzan en línea recta hacia el centro,
+   más rápido cuanto más fuerte suena la música. El mandala de fondo,
+   con la misma lógica que el fractal del modo cósmico, corre solo y se
+   mantiene tenue para nunca tapar la escena.
 
 ## Estructura
 
