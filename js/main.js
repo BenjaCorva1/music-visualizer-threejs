@@ -732,6 +732,217 @@ function createCosmicMode() {
 }
 
 /* =========================================================
+   MODO 6 — Cuerpo de energía (homenaje a Alex Grey)
+   Referencia: los "Sacred Mirrors" de Alex Grey — una figura humana
+   translúcida con su sistema energético (chakras) a la vista,
+   irradiando líneas de luz sobre un fondo de geometría sagrada. Los
+   7 chakras, apilados sobre una columna, leen cada uno una banda de
+   frecuencia distinta (como un ecualizador vertical) y disparan los
+   rayos que irradian de su cuerpo; el mandala de fondo, como el
+   fractal del modo cósmico, corre en su propio reloj y se mantiene
+   tenue para no taparlos.
+   ========================================================= */
+function createSacredBodyMode() {
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x05010a);
+
+  // ---- Mandala de fondo: patrón radialmente simétrico (geometría
+  // sagrada) sobre la misma esfera-cielo que el modo cósmico, con el
+  // mismo criterio de brillo bajo para no competir con la figura.
+  const mandalaUniforms = { uTime: { value: 0 } };
+  const mandalaMat = new THREE.ShaderMaterial({
+    uniforms: mandalaUniforms,
+    side: THREE.BackSide,
+    depthWrite: false,
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform float uTime;
+      varying vec2 vUv;
+
+      vec3 palette(float t) {
+        vec3 a = vec3(0.35, 0.25, 0.4);
+        vec3 b = vec3(0.3, 0.3, 0.3);
+        vec3 c = vec3(1.0, 0.8, 0.6);
+        vec3 d = vec3(0.2, 0.4, 0.7);
+        return a + b * cos(6.28318 * (c * t + d));
+      }
+
+      void main() {
+        vec2 uv = vUv - 0.5;
+        float r = length(uv) * 2.0;
+        float a = atan(uv.y, uv.x);
+        float seg = 6.28318 / 12.0;
+        a = abs(mod(a, seg) - seg * 0.5);
+
+        float pattern = sin(r * 14.0 - uTime * 0.4) * 0.5 + 0.5;
+        pattern += sin(a * 20.0 + uTime * 0.2) * 0.5 + 0.5;
+        pattern *= 0.5;
+        pattern *= smoothstep(1.1, 0.15, r);
+
+        vec3 color = palette(pattern + uTime * 0.015) * pattern;
+        gl_FragColor = vec4(color * 0.35, 1.0);
+      }
+    `,
+  });
+  const mandalaSky = new THREE.Mesh(new THREE.SphereGeometry(70, 48, 32), mandalaMat);
+  scene.add(mandalaSky);
+
+  scene.add(new THREE.AmbientLight(0x332244, 1.2));
+  const rimLight = new THREE.PointLight(0xaa88ff, 40, 30);
+  rimLight.position.set(0, 0.5, 5);
+  scene.add(rimLight);
+
+  // ---- Columna de chakras: cada uno lee una banda de frecuencia
+  // distinta, de raíz (graves) a corona (agudos).
+  const CHAKRAS = [
+    { y: -2.4, hue: 0.0 }, // raíz
+    { y: -1.6, hue: 0.08 }, // sacro
+    { y: -0.8, hue: 0.15 }, // plexo solar
+    { y: 0.0, hue: 0.35 }, // corazón
+    { y: 0.8, hue: 0.55 }, // garganta
+    { y: 1.6, hue: 0.72 }, // tercer ojo
+    { y: 2.4, hue: 0.82 }, // corona
+  ];
+  const chakras = CHAKRAS.map((c) => {
+    const baseColor = new THREE.Color().setHSL(c.hue, 0.85, 0.55);
+    const mat = new THREE.MeshStandardMaterial({
+      color: baseColor,
+      emissive: baseColor.clone().multiplyScalar(0.5),
+      metalness: 0.3,
+      roughness: 0.4,
+    });
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.32, 24, 24), mat);
+    mesh.position.set(0, c.y, 0);
+    scene.add(mesh);
+    return { mesh, mat, baseColor, y: c.y, hue: c.hue };
+  });
+
+  const spineMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.25 });
+  const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 5.2, 8), spineMat);
+  scene.add(spine);
+
+  // Aura: silueta translúcida que envuelve la columna de chakras,
+  // como el cuerpo energético en los cuadros de Alex Grey.
+  const auraMat = new THREE.MeshBasicMaterial({
+    color: 0xcdb8ff,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.18,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const aura = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 2), auraMat);
+  aura.scale.set(1.15, 3.3, 1.15);
+  scene.add(aura);
+
+  const haloMat = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.4,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const halo = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.025, 8, 60), haloMat);
+  halo.position.set(0, 2.4, 0);
+  halo.rotation.x = Math.PI / 2;
+  scene.add(halo);
+
+  // ---- Rayos de energía: 12 por chakra, en un solo LineSegments para
+  // que actualizar sus 168 vértices por frame sea prácticamente gratis.
+  const RAYS_PER_CHAKRA = 12;
+  const rayData = [];
+  CHAKRAS.forEach((c, ci) => {
+    for (let r = 0; r < RAYS_PER_CHAKRA; r++) {
+      rayData.push({
+        chakraIndex: ci,
+        angle: (r / RAYS_PER_CHAKRA) * Math.PI * 2 + ci * 0.3,
+        y: c.y,
+        spin: (ci % 2 === 0 ? 1 : -1) * (0.15 + Math.random() * 0.15),
+      });
+    }
+  });
+  const rayPositions = new Float32Array(rayData.length * 2 * 3);
+  const rayColors = new Float32Array(rayData.length * 2 * 3);
+  rayData.forEach((rd, i) => {
+    const color = new THREE.Color().setHSL(CHAKRAS[rd.chakraIndex].hue, 0.9, 0.6);
+    for (let v = 0; v < 2; v++) {
+      const idx = (i * 2 + v) * 3;
+      rayColors[idx] = color.r;
+      rayColors[idx + 1] = color.g;
+      rayColors[idx + 2] = color.b;
+    }
+  });
+  const rayGeo = new THREE.BufferGeometry();
+  rayGeo.setAttribute("position", new THREE.BufferAttribute(rayPositions, 3));
+  rayGeo.setAttribute("color", new THREE.BufferAttribute(rayColors, 3));
+  const rayMat = new THREE.LineBasicMaterial({
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.85,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const rays = new THREE.LineSegments(rayGeo, rayMat);
+  scene.add(rays);
+
+  function update(dt, t, freqData, avg, bass, playing) {
+    mandalaUniforms.uTime.value = t;
+
+    const energy = playing ? avg : 0.12;
+    const chakraLevels = chakras.map((c, i) => {
+      let value = 0.1;
+      if (playing && freqData) {
+        const bin = Math.floor((i / CHAKRAS.length) * (freqData.length * 0.85));
+        value = (freqData[bin] ?? 0) / 255;
+      } else {
+        value = 0.1 + 0.05 * Math.sin(t * 1.5 + i);
+      }
+      c.mesh.scale.setScalar(1 + value * 1.6);
+      c.mat.emissive.copy(c.baseColor).multiplyScalar(0.4 + value * 1.2);
+      return value;
+    });
+
+    const posAttr = rayGeo.attributes.position;
+    rayData.forEach((rd, i) => {
+      const len = 0.5 + chakraLevels[rd.chakraIndex] * 2.6;
+      const angle = rd.angle + t * rd.spin;
+      const idx = i * 6;
+      posAttr.array[idx] = 0;
+      posAttr.array[idx + 1] = rd.y;
+      posAttr.array[idx + 2] = 0;
+      posAttr.array[idx + 3] = Math.cos(angle) * len;
+      posAttr.array[idx + 4] = rd.y;
+      posAttr.array[idx + 5] = Math.sin(angle) * len;
+    });
+    posAttr.needsUpdate = true;
+
+    aura.rotation.y += dt * 0.05;
+    aura.scale.x = 1.15 + energy * 0.15;
+    aura.scale.z = 1.15 + energy * 0.15;
+
+    halo.rotation.z += dt * 0.3;
+    halo.material.opacity = 0.35 + chakraLevels[6] * 0.5;
+    rimLight.intensity = 30 + energy * 200;
+  }
+
+  return {
+    key: "sacred",
+    label: "Cuerpo de energía (Alex Grey)",
+    desc: "Chakras, líneas de energía y geometría sagrada",
+    scene,
+    cameraHome: new THREE.Vector3(0, 0.3, 12),
+    lookAt: new THREE.Vector3(0, 0, 0),
+    update,
+  };
+}
+
+/* =========================================================
    Registro de modos + modo 3 (Anáglifo), que reutiliza la
    escena del espectro circular pero cambia la técnica de
    render (par estéreo rojo/cian), como en
@@ -741,6 +952,7 @@ const circularMode = createCircularMode();
 const terrainMode = createTerrainMode();
 const helpersMode = createHelpersMode();
 const cosmicMode = createCosmicMode();
+const sacredBodyMode = createSacredBodyMode();
 
 const anaglyphMode = {
   key: "anaglyph",
@@ -753,7 +965,7 @@ const anaglyphMode = {
   update: circularMode.update,
 };
 
-const modes = [cosmicMode, helpersMode, circularMode, terrainMode, anaglyphMode];
+const modes = [cosmicMode, sacredBodyMode, helpersMode, circularMode, terrainMode, anaglyphMode];
 let activeMode = modes[0];
 
 function setMode(key) {

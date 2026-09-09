@@ -51,6 +51,13 @@ Seleccionables desde la pestaña **"Visualizaciones"** del panel lateral
    ecualizador) que sí siguen el ritmo de la música. Alrededor orbitan
    planetas (algunos con anillo tipo Saturno) y cruzan meteoros de punta
    a punta. Es el modo por defecto al abrir la app.
+6. **Cuerpo de energía (Alex Grey)** — homenaje a los "Sacred Mirrors"
+   de [Alex Grey](https://en.wikipedia.org/wiki/Alex_Grey): una figura
+   translúcida con sus 7 chakras a la vista, cada uno leyendo una banda
+   de frecuencia distinta (como un ecualizador vertical) e irradiando
+   líneas de energía. El mandala de fondo, con la misma lógica que el
+   fractal del modo cósmico, corre solo y se mantiene tenue para nunca
+   tapar la figura.
 
 ## Estructura
 
@@ -89,7 +96,7 @@ Después abrí `http://localhost:8000` en el navegador.
 4. Mové el volumen y la barra de progreso con los sliders.
 5. Al terminar un tema, pasa solo al siguiente de la playlist.
 6. En la pestaña **"Visualizaciones"** del panel lateral, hacé click en
-   cualquiera de los 5 modos para cambiar la escena en vivo.
+   cualquiera de los 6 modos para cambiar la escena en vivo.
 7. Arrastrá con el mouse o el dedo sobre la visualización para girar la
    cámara; con la rueda o pellizcando, hacés zoom.
 8. El botón **⛶** de la barra de título oculta toda la interfaz y deja
