@@ -76,7 +76,8 @@ const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 200);
 // render (ojo izquierdo/derecho) directamente sobre el renderer.
 const composer = new EffectComposer(renderer);
 const renderPass = new RenderPass(new THREE.Scene(), camera);
-const bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), 1.1, 0.5, 0.2);
+const DEFAULT_BLOOM = { strength: 1.1, radius: 0.5, threshold: 0.2 };
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), DEFAULT_BLOOM.strength, DEFAULT_BLOOM.radius, DEFAULT_BLOOM.threshold);
 composer.addPass(renderPass);
 composer.addPass(bloomPass);
 composer.addPass(new OutputPass());
@@ -889,181 +890,314 @@ function createSacredBodyMode() {
 }
 
 /* =========================================================
-   MODO 7 — Mandala Sagrado
-   N anillos independientes (no un patrón monolítico): cada uno tiene
-   su propia fase de nacimiento, su propia velocidad de rotación y su
-   propio ciclo de expansión — a propósito escalonados (staggered)
-   entre sí, para que en cualquier instante se pueda seguir un anillo
-   particular en vez de percibir todo como un parpadeo uniforme. El
-   color de cada anillo es pseudo-aleatorio por anillo y por ciclo
-   (hash determinístico), no un degradado fijo como en la versión
-   anterior de este modo.
+   MODO 7 — Túnel Sagrado
+   Túnel infinito de anillos de geometría sagrada (no un plano frontal
+   como la versión anterior): cada anillo tiene su propia fase de
+   nacimiento, velocidad de rotación y ciclo de expansión, escalonados
+   entre sí, y además se desplaza por el eje Z en loop (módulo, sin
+   crear/destruir geometría) hacia una figura humana de baja poligonización
+   en el punto de fuga. El color de cada anillo es un hash determinístico
+   por índice + ciclo, no un degradado fijo.
+
+   Nota de diseño: a diferencia de los otros modos con shader de fondo
+   (cósmico, túnel de ojos, mandala plano), acá la figura 3D con
+   profundidad real (item 6 del pedido) necesita geometría de verdad —
+   un shader 2D de pantalla completa no puede dar paralaje/oclusión
+   correcta entre la figura y los anillos. Por eso este modo usa mallas
+   reales (RingGeometry + CapsuleGeometry) animadas desde JS en vez de
+   uniforms de shader: uTime/uBass/uAvg/uCameraZ/uVariantSeed/uPhaseStep
+   del pedido original existen igual, pero como variables JS (t, bass,
+   avg suavizado, scrollZ, activeParams.seed, activeParams.phaseStep)
+   en vez de uniforms de GLSL.
    ========================================================= */
 function createMandalaMode() {
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x030004);
+  scene.background = new THREE.Color(0x02000a);
 
-  // Debe coincidir con el #define N del shader de abajo.
-  const RING_COUNT = 8;
+  scene.add(new THREE.AmbientLight(0x332244, 1.1));
+  const tunnelLight = new THREE.PointLight(0xaa88ff, 18, 40);
+  tunnelLight.position.set(0, 2, 4);
+  scene.add(tunnelLight);
 
-  const mandalaUniforms = {
-    uTime: { value: 0 },
-    uBass: { value: 0 },
-    uAvg: { value: 0 },
-    uCycleLength: { value: 3.2 },
-    uPhaseStep: { value: 0.9 },
-    uBandLevels: { value: new Float32Array(RING_COUNT) },
-  };
+  // ---- Parámetros del túnel ----
+  const RING_COUNT = 10;
+  const Z_SPACING = 4.2;
+  const NEAR_Z = 2.5;
+  const TUNNEL_LENGTH = RING_COUNT * Z_SPACING;
+  const FAR_Z = NEAR_Z - TUNNEL_LENGTH;
+  const FIGURE_Z = FAR_Z - 4;
 
-  const mandalaMat = new THREE.ShaderMaterial({
-    uniforms: mandalaUniforms,
-    side: THREE.BackSide,
+  function frac(x) {
+    return x - Math.floor(x);
+  }
+  // Hash determinístico (mismo criterio que las versiones anteriores):
+  // la misma entrada da siempre el mismo resultado. Se lo alimenta con
+  // índices y números de ciclo, nunca con tiempo continuo, para que el
+  // color de un anillo no cambie frame a frame.
+  function hash1(n) {
+    return frac(Math.sin(n * 127.1) * 43758.5453123);
+  }
+  // Versión de mod() que, como en GLSL, siempre devuelve un resultado
+  // no negativo — hace falta porque localTime también puede envolverse
+  // y el % nativo de JS conserva el signo del dividendo.
+  function mod(a, b) {
+    return ((a % b) + b) % b;
+  }
+
+  // ---- Textura del anillo: dibuja "axes" muescas en un canvas. Cambiar
+  // el orden geométrico de una variante solo redibuja esta textura, sin
+  // tocar la geometría 3D del anillo.
+  function makeRingTexture(axes) {
+    const size = 256;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    const cx = size / 2;
+    const cy = size / 2;
+    const rOuter = size * 0.49;
+    const rInner = size * 0.34;
+    const segAngle = (Math.PI * 2) / axes;
+    ctx.fillStyle = "#ffffff";
+    for (let i = 0; i < axes; i++) {
+      const a0 = i * segAngle + segAngle * 0.12;
+      const a1 = i * segAngle + segAngle * 0.88;
+      ctx.beginPath();
+      ctx.arc(cx, cy, rOuter, a0, a1);
+      ctx.arc(cx, cy, rInner, a1, a0, true);
+      ctx.closePath();
+      ctx.fill();
+    }
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }
+
+  // ---- Variantes: cada una redefine semilla de color, separación de
+  // fase, orden geométrico (muescas) y si se ve la figura humana.
+  const mandalaVariants = [
+    { seed: 0.0, phaseStep: 0.9, axes: 8, showFigure: true },
+    { seed: 4.7, phaseStep: 0.6, axes: 6, showFigure: true },
+    { seed: 9.3, phaseStep: 1.3, axes: 10, showFigure: false },
+    { seed: 14.1, phaseStep: 0.75, axes: 7, showFigure: true },
+  ];
+
+  // ---- Anillos ----
+  const ringGeo = new THREE.RingGeometry(0.72, 1, 48);
+  let currentRingTexture = makeRingTexture(mandalaVariants[0].axes);
+  const rings = [];
+  for (let i = 0; i < RING_COUNT; i++) {
+    const mat = new THREE.MeshBasicMaterial({
+      map: currentRingTexture,
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const mesh = new THREE.Mesh(ringGeo, mat);
+    scene.add(mesh);
+    rings.push({
+      mesh,
+      mat,
+      index: i,
+      baseZ: -i * Z_SPACING,
+      rotSpeed: 0.4 * (0.7 + hash1(i) * 0.6) * (i % 2 === 0 ? 1 : -1),
+    });
+  }
+
+  // ---- Figura humana (primitivas de baja poligonización, pose tipo
+  // Vitruvio) en el punto de fuga del túnel. Wireframe + additive para
+  // que el bloom la lea como silueta luminosa, no como modelo realista.
+  const figureGroup = new THREE.Group();
+  figureGroup.position.set(0, 0, FIGURE_Z);
+  scene.add(figureGroup);
+
+  const figureMat = new THREE.MeshBasicMaterial({
+    color: 0xcdb8ff,
+    wireframe: true,
+    transparent: true,
+    opacity: 0,
+    blending: THREE.AdditiveBlending,
     depthWrite: false,
-    vertexShader: `
-      varying vec2 vUv;
-      void main() {
-        vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: `
-      #define N ${RING_COUNT}
-      uniform float uTime;
-      uniform float uBass;
-      uniform float uAvg;
-      uniform float uCycleLength;
-      uniform float uPhaseStep;
-      uniform float uBandLevels[N];
-      varying vec2 vUv;
-
-      const float PI = 3.14159265;
-
-      vec3 hsl2rgb(vec3 hsl) {
-        vec3 rgb = clamp(abs(mod(hsl.x * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
-        return hsl.z + hsl.y * (rgb - 0.5) * (1.0 - abs(2.0 * hsl.z - 1.0));
-      }
-
-      // ---- COLOR ALEATORIO POR ELEMENTO ----
-      // Hash determinístico (no random() de GLSL): la misma entrada
-      // siempre da el mismo resultado. Se lo alimenta con el índice del
-      // anillo + su número de ciclo (nunca con uTime continuo), así el
-      // color de un anillo se mantiene fijo durante todo un ciclo de
-      // expansión y solo "salta" a uno nuevo cuando ese anillo se resetea.
-      float hash1(float n) {
-        return fract(sin(n * 127.1) * 43758.5453123);
-      }
-
-      void main() {
-        vec2 uv = (vUv - 0.5) * 2.4;
-        float r = length(uv);
-        float ang = atan(uv.y, uv.x);
-
-        vec3 color = vec3(0.0);
-
-        for (int i = 0; i < N; i++) {
-          float fi = float(i);
-
-          // ---- ESCALONAMIENTO (staggered timing) ----
-          // Cada anillo nace uPhaseStep segundos después que el
-          // anterior: phase_i = i * uPhaseStep. localTime es el reloj
-          // propio del anillo, en 0 en su nacimiento — por eso todos
-          // están en un punto distinto de su ciclo en todo momento.
-          float phase_i = fi * uPhaseStep;
-          float localTime = max(uTime - phase_i, 0.0);
-
-          // Velocidad de rotación propia por anillo (0.7x a 1.3x la
-          // base), vía hash — para que ninguno gire sincronizado con
-          // otro y se lo pueda distinguir a simple vista.
-          float speed_i = 0.35 * (0.7 + hash1(fi) * 0.6);
-          float angleOffset = uTime * speed_i + fi * 1.7;
-
-          // ---- EXPANSIÓN CONTINUA EN LOOP ----
-          // cycleT recorre 0..uCycleLength una y otra vez (el "reloj de
-          // vuelta" del anillo); cycleIndex cuenta cuántas vueltas ya
-          // dio, y es lo que alimenta el hash de color.
-          float cycleT = mod(localTime, uCycleLength);
-          float cycleIndex = floor(localTime / uCycleLength);
-
-          float minR = 0.08;
-          float maxR = 1.15;
-          float radius_i = mix(minR, maxR, cycleT / uCycleLength);
-
-          // Aparece (fade-in) al nacer cada vuelta y desaparece
-          // (fade-out) antes de resetear el radio — nunca hay un "pop".
-          float fadeIn = smoothstep(0.0, uCycleLength * 0.18, cycleT);
-          float fadeOut = 1.0 - smoothstep(uCycleLength * 0.78, uCycleLength, cycleT);
-          float appear = fadeIn * fadeOut;
-
-          float hue = hash1(fi * 3.1 + cycleIndex * 13.37 + 0.5);
-          vec3 ringColor = hsl2rgb(vec3(hue, 0.75, 0.55));
-
-          // Muescas alrededor del anillo (cantidad también por hash):
-          // sin esto, un círculo liso rotando se vería estático.
-          float dashCount = 6.0 + floor(hash1(fi + 50.0) * 6.0);
-          float a2 = ang + angleOffset;
-          float dashSeg = 2.0 * PI / dashCount;
-          float dashPhase = mod(a2, dashSeg);
-          float dash = smoothstep(dashSeg * 0.55, dashSeg * 0.25, dashPhase);
-
-          float bandWidth = 0.012 + 0.012 * appear;
-          float band = smoothstep(bandWidth, 0.0, abs(r - radius_i));
-
-          float level = uBandLevels[i];
-          color += ringColor * band * dash * appear * (0.4 + level * 1.4);
-        }
-
-        color *= 0.55 + uAvg * 1.1; // brillo general atado al volumen
-        gl_FragColor = vec4(color, 1.0);
-      }
-    `,
   });
 
-  const mandalaSky = new THREE.Mesh(new THREE.SphereGeometry(70, 48, 32), mandalaMat);
-  scene.add(mandalaSky);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 16), figureMat);
+  head.position.y = 2.1;
+  figureGroup.add(head);
 
-  // uPhaseStep/uCycleLength se calculan a partir de estos valores YA
-  // suavizados (no del bass/avg crudo): si cambiaran de golpe frame a
-  // frame, phase_i = i*uPhaseStep saltaría para cada anillo y rompería
-  // el escalonamiento en vez de simplemente acelerarlo/frenarlo.
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.45, 1.7, 4, 8), figureMat);
+  torso.position.y = 0.9;
+  figureGroup.add(torso);
+
+  const armLength = 1.6;
+  const armL = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, armLength, 4, 8), figureMat);
+  armL.rotation.z = Math.PI / 2;
+  armL.position.set(-(armLength / 2 + 0.5), 1.5, 0);
+  figureGroup.add(armL);
+  const armR = armL.clone();
+  armR.position.x *= -1;
+  figureGroup.add(armR);
+
+  const legLength = 1.8;
+  const legL = new THREE.Mesh(new THREE.CapsuleGeometry(0.2, legLength, 4, 8), figureMat);
+  legL.position.set(-0.35, -legLength / 2, 0);
+  figureGroup.add(legL);
+  const legR = legL.clone();
+  legR.position.x *= -1;
+  figureGroup.add(legR);
+
+  // ---- Estado de transición entre variantes (crossfade, no corte
+  // abrupto): cycleVariant() solo levanta una bandera; el cambio real
+  // se procesa al principio de update(), que es el único lugar donde
+  // es seguro leer el reloj (evita tocar el Clock compartido desde un
+  // listener de click/teclado fuera del loop de animación).
+  let variantIndex = 0;
+  let fromParams = { ...mandalaVariants[0] };
+  let toParams = { ...mandalaVariants[0] };
+  let transitionProgress = 1;
+  let pendingCycle = false;
+  const TRANSITION_DURATION = 0.8;
+  let lastBlend = {
+    seed: mandalaVariants[0].seed,
+    phaseStep: mandalaVariants[0].phaseStep,
+    figureVisibility: mandalaVariants[0].showFigure ? 1 : 0,
+  };
+
+  function cycleVariant() {
+    pendingCycle = true;
+  }
+
   let smoothBass = 0;
   let smoothAvg = 0;
+  let scrollZ = 0;
+  const BASE_CYCLE_LENGTH = 3.0;
+  const BASE_SCROLL_SPEED = 2.2;
+  const tmpColor = new THREE.Color();
 
   function update(dt, t, freqData, avg, bass, playing) {
+    if (pendingCycle) {
+      pendingCycle = false;
+      variantIndex = (variantIndex + 1) % mandalaVariants.length;
+      // Arranca la transición desde donde esté el blend AHORA (no desde
+      // la variante "asentada"): si se tapea rápido varias veces, sigue
+      // de forma continua en vez de saltar.
+      fromParams = {
+        seed: lastBlend.seed,
+        phaseStep: lastBlend.phaseStep,
+        showFigure: lastBlend.figureVisibility > 0.5,
+      };
+      toParams = mandalaVariants[variantIndex];
+      transitionProgress = 0;
+
+      // El orden geométrico (muescas) cambia de golpe, como un giro de
+      // caleidoscopio; lo que sí cruza suave es el color/timing/figura.
+      const newTexture = makeRingTexture(toParams.axes);
+      rings.forEach((ring) => {
+        ring.mat.map = newTexture;
+        ring.mat.needsUpdate = true;
+      });
+      currentRingTexture.dispose();
+      currentRingTexture = newTexture;
+    }
+
+    let blendedSeed;
+    let blendedPhaseStep;
+    let figureVisibility;
+    if (transitionProgress < 1) {
+      transitionProgress = Math.min(transitionProgress + dt / TRANSITION_DURATION, 1);
+      const b = THREE.MathUtils.smoothstep(transitionProgress, 0, 1);
+      blendedSeed = THREE.MathUtils.lerp(fromParams.seed, toParams.seed, b);
+      blendedPhaseStep = THREE.MathUtils.lerp(fromParams.phaseStep, toParams.phaseStep, b);
+      figureVisibility = THREE.MathUtils.lerp(fromParams.showFigure ? 1 : 0, toParams.showFigure ? 1 : 0, b);
+    } else {
+      blendedSeed = toParams.seed;
+      blendedPhaseStep = toParams.phaseStep;
+      figureVisibility = toParams.showFigure ? 1 : 0;
+    }
+    lastBlend = { seed: blendedSeed, phaseStep: blendedPhaseStep, figureVisibility };
+
     const targetBass = playing ? bass : 0.1;
     const targetAvg = playing ? avg : 0.15;
     const smoothing = Math.min(dt * 2, 1);
     smoothBass += (targetBass - smoothBass) * smoothing;
     smoothAvg += (targetAvg - smoothAvg) * smoothing;
 
-    mandalaUniforms.uTime.value = t;
-    mandalaUniforms.uBass.value = smoothBass;
-    mandalaUniforms.uAvg.value = smoothAvg;
-    // Más bass = anillos algo más próximos en el tiempo / ciclos algo
-    // más cortos, dentro de un rango acotado (±35% y ±25%).
-    mandalaUniforms.uPhaseStep.value = 0.9 * (1 - smoothBass * 0.35);
-    mandalaUniforms.uCycleLength.value = 3.2 * (1 - smoothBass * 0.25);
+    // Más bass = anillos más próximos en el tiempo, ciclos más cortos y
+    // avance más rápido por el túnel — todo dentro de un rango acotado
+    // y a partir del bass ya suavizado (si no, uPhaseStep saltaría cada
+    // frame y rompería el escalonamiento en vez de solo acelerarlo).
+    const phaseStep = blendedPhaseStep * (1 - smoothBass * 0.3);
+    const cycleLength = BASE_CYCLE_LENGTH * (1 - smoothBass * 0.25);
+    const scrollSpeed = BASE_SCROLL_SPEED * (1 + smoothBass * 0.8);
+    scrollZ += scrollSpeed * dt;
 
-    const levels = mandalaUniforms.uBandLevels.value;
-    for (let i = 0; i < RING_COUNT; i++) {
-      let value = 0.15;
+    rings.forEach((ring) => {
+      const i = ring.index;
+
+      // ---- ESCALONAMIENTO ----
+      const phase_i = i * phaseStep;
+      const localTime = Math.max(t - phase_i, 0);
+
+      // ---- EXPANSIÓN RADIAL EN LOOP ----
+      const cycleT = mod(localTime, cycleLength);
+      const cycleIndex = Math.floor(localTime / cycleLength);
+      const radius_i = THREE.MathUtils.lerp(0.5, 2.4, cycleT / cycleLength);
+
+      const fadeIn = THREE.MathUtils.smoothstep(cycleT, 0, cycleLength * 0.18);
+      const fadeOut = 1 - THREE.MathUtils.smoothstep(cycleT, cycleLength * 0.78, cycleLength);
+      const appear = fadeIn * fadeOut;
+
+      let level = 0.15;
       if (playing && freqData) {
         const bin = Math.floor((i / RING_COUNT) * (freqData.length * 0.9));
-        value = (freqData[bin] ?? 0) / 255;
+        level = (freqData[bin] ?? 0) / 255;
       } else {
-        value = 0.12 + 0.05 * Math.sin(t * 1.3 + i);
+        level = 0.12 + 0.05 * Math.sin(t * 1.3 + i);
       }
-      levels[i] = value;
-    }
+
+      // ---- AVANCE POR EL TÚNEL (loop infinito vía módulo) ----
+      // ring.baseZ + scrollZ crece sin límite; el módulo lo envuelve
+      // siempre dentro de [0, TUNNEL_LENGTH), y sumar FAR_Z lo reubica
+      // en [FAR_Z, NEAR_Z) — el anillo avanza hacia la cámara y, al
+      // llegar a NEAR_Z, reaparece en FAR_Z sin crear/destruir nada.
+      const zRaw = mod(ring.baseZ + scrollZ, TUNNEL_LENGTH);
+      ring.mesh.position.z = zRaw + FAR_Z;
+
+      // Fade por posición (no por el ciclo de expansión): sin esto, el
+      // "salto" del loop en el módulo de arriba se vería como un pop
+      // brusco cada vez que un anillo reaparece atrás.
+      const zFrac = zRaw / TUNNEL_LENGTH;
+      const zFade = THREE.MathUtils.smoothstep(zFrac, 0, 0.08) * (1 - THREE.MathUtils.smoothstep(zFrac, 0.92, 1));
+
+      // ---- COLOR ALEATORIO POR ANILLO Y POR CICLO ----
+      const hue = frac(hash1(i * 3.1 + cycleIndex * 13.37 + blendedSeed * 0.37 + 0.5));
+      tmpColor.setHSL(hue, 0.75, 0.5);
+      ring.mat.color.copy(tmpColor).multiplyScalar(0.6 + level * 0.9);
+      ring.mat.opacity = appear * zFade * (0.55 + level * 0.45);
+
+      ring.mesh.rotation.z += dt * ring.rotSpeed;
+      ring.mesh.scale.setScalar(radius_i);
+    });
+
+    const bassPulse = playing ? bass : 0.1 + Math.sin(t * 1.1) * 0.03;
+    figureGroup.scale.setScalar(1 + bassPulse * 0.25);
+    figureGroup.rotation.y += dt * 0.15;
+    figureMat.opacity = figureVisibility * (0.55 + smoothAvg * 0.4);
+
+    tunnelLight.intensity = 14 + smoothAvg * 90;
   }
 
   return {
     key: "mandala",
-    label: "Mandala Sagrado",
-    desc: "Anillos escalonados que se expanden con color propio",
+    label: "Túnel Sagrado",
+    desc: "Anillos escalonados en un túnel infinito hacia una figura",
     scene,
-    cameraHome: new THREE.Vector3(0, 0, 12),
-    lookAt: new THREE.Vector3(0, 0, 0),
+    cameraHome: new THREE.Vector3(0, 1, 6),
+    lookAt: new THREE.Vector3(0, 0, -14),
     update,
+    cycleVariant,
+    bloomOverride: { strength: 0.6, radius: 0.4, threshold: 0.32 },
   };
 }
 
@@ -1103,6 +1237,13 @@ function setMode(key) {
   camera.updateProjectionMatrix();
   controls.target.copy(mode.lookAt);
   controls.update();
+  // Cada modo puede pedir su propia intensidad de bloom (ej. el Túnel
+  // Sagrado la baja porque sus texturas aditivas + emissive quedaban
+  // sobreexpuestas con la intensidad global por defecto).
+  const bloom = mode.bloomOverride || DEFAULT_BLOOM;
+  bloomPass.strength = bloom.strength;
+  bloomPass.radius = bloom.radius;
+  bloomPass.threshold = bloom.threshold;
   vizModeLabel.textContent = `Visualización: ${mode.label}`;
   renderEffectsList();
 }
@@ -1334,6 +1475,38 @@ document.addEventListener("fullscreenchange", () => {
 });
 
 window.addEventListener("orientationchange", () => resizeRenderer());
+
+// ---------- Ciclar variante del Túnel Sagrado (solo en modo inmersivo) ----------
+// Un tap/click (sin arrastrar, para no pisar el drag de OrbitControls)
+// o la flecha derecha avanzan a la siguiente variante — pero solo si el
+// modo activo es el mandala Y la interfaz está en modo inmersivo, para
+// no interferir con los controles normales de cámara/UI en el resto de
+// los casos.
+function tryCycleMandalaVariant() {
+  if (
+    wmpWindow.classList.contains("immersive") &&
+    activeMode.key === "mandala" &&
+    typeof activeMode.cycleVariant === "function"
+  ) {
+    activeMode.cycleVariant();
+  }
+}
+
+let tapStart = null;
+const TAP_MOVE_THRESHOLD = 6; // px — más que esto se considera arrastre, no tap
+canvas.addEventListener("pointerdown", (e) => {
+  tapStart = { x: e.clientX, y: e.clientY };
+});
+canvas.addEventListener("pointerup", (e) => {
+  if (!tapStart) return;
+  const moved = Math.hypot(e.clientX - tapStart.x, e.clientY - tapStart.y);
+  tapStart = null;
+  if (moved < TAP_MOVE_THRESHOLD) tryCycleMandalaVariant();
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowRight") tryCycleMandalaVariant();
+});
 
 // ---------- Eventos de UI ----------
 btnOpen.addEventListener("click", () => fileInput.click());

@@ -59,15 +59,19 @@ Seleccionables desde la pestaña **"Visualizaciones"** del panel lateral
    sensación de inmersión, de ir avanzando hacia el fondo. El mandala,
    con la misma lógica que el fractal del modo cósmico, corre en su
    propio reloj y se mantiene tenue.
-7. **Mandala Sagrado** — 8 anillos independientes (no un patrón único):
-   cada uno nace con su propia fase escalonada, gira a su propia
-   velocidad y se expande en loop desde el centro hasta desvanecerse y
-   resetear con un color nuevo (hash determinístico por anillo + ciclo,
-   no un degradado fijo). En todo momento se puede seguir un anillo
-   particular en vez de percibir parpadeo general. El bajo acerca
-   levemente la fase entre anillos y acorta los ciclos (dentro de un
-   rango acotado); el volumen controla el brillo general; cada anillo
-   lee su propia banda de frecuencia para su intensidad.
+7. **Túnel Sagrado** — un túnel infinito (loop por módulo, sin crear ni
+   destruir geometría) de 10 anillos de geometría sagrada que avanzan
+   hacia la cámara mientras se expanden en el lugar, cada uno con su
+   propia fase escalonada, velocidad de rotación y color (hash
+   determinístico por anillo + ciclo — nunca parpadeo aleatorio). Al
+   fondo, en el punto de fuga, una figura humana de baja poligonización
+   (pose tipo Vitruvio) en wireframe glow que pulsa con el bajo. El
+   bajo también acelera el avance por el túnel y acerca la fase entre
+   anillos; el volumen controla el brillo general; cada anillo lee su
+   propia banda de frecuencia. **Solo en modo inmersivo** (botón ⛶):
+   un tap o la flecha derecha ciclan entre 4 variantes (paleta,
+   separación de fase, orden geométrico, figura visible u oculta) con
+   una transición de ~0.8s, no un corte abrupto.
 
 ## Estructura
 
