@@ -43,12 +43,13 @@ Seleccionables desde la pestaña **"Visualizaciones"** del panel lateral
    combina `ArrowHelper`, `PolarGridHelper`, `AxesHelper`,
    `PointLightHelper` y `CameraHelper` reaccionando al audio, con estética
    de "modo debug".
-5. **Planetas cósmicos (psicodélica)** — copia del "Radar de helpers" (mismos
-   `ArrowHelper`, `PolarGridHelper`, luces) sumándole un sistema planetario
-   orbitando (algunos con anillo tipo Saturno), un campo de estrellas,
-   meteoros que cruzan la escena de punta a punta (más rápido cuanto más
-   fuerte suena el audio) y colores psicodélicos que ciclan con el tiempo.
-   Es el modo por defecto al abrir la app.
+5. **Planetas cósmicos (psicodélica)** — dos capas con lógicas separadas,
+   a propósito: de fondo, un fractal (Julia set) animado por shader que
+   corre y muta solo a un patrón random cada tanto, **sin** seguir la
+   música; al centro, un "sol" estable cuyo color, escala y giro sí están
+   atados al audio, como ancla frente al caos de fondo. Alrededor orbitan
+   planetas (algunos con anillo tipo Saturno) y cruzan meteoros de punta
+   a punta. Es el modo por defecto al abrir la app.
 
 ## Estructura
 
@@ -90,6 +91,10 @@ Después abrí `http://localhost:8000` en el navegador.
    cualquiera de los 5 modos para cambiar la escena en vivo.
 7. Arrastrá con el mouse o el dedo sobre la visualización para girar la
    cámara; con la rueda o pellizcando, hacés zoom.
+8. El botón **⛶** de la barra de título oculta toda la interfaz y deja
+   solo el efecto a pantalla completa (en Chrome Android además intenta
+   rotar a horizontal). Para volver, tocá el botón **"⤢ Salir"** que
+   aparece arriba a la derecha, o apretá `Esc`.
 
 ## Por qué a veces tarda en verse el último cambio (caché)
 

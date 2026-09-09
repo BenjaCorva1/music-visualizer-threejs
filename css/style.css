@@ -14,11 +14,13 @@ body {
 }
 
 /* ===== Ventana estilo Windows Media Player (Luna/Royale look) =====
-   Por defecto la ventana arranca maximizada (ocupa toda la pantalla).
-   La clase .restored la vuelve a la ventana clásica de 820px. */
+   La ventana ocupa toda la pantalla desde el arranque. 100dvh es una
+   mejora progresiva sobre 100vh: los navegadores que no la entienden
+   ignoran esa línea y se quedan con 100vh. */
 .wmp-window {
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   max-width: 100vw;
   background: #ece9d8;
   border: none;
@@ -29,13 +31,41 @@ body {
   flex-direction: column;
 }
 
-.wmp-window.restored {
-  width: 820px;
-  height: auto;
-  max-width: 96vw;
-  border: 1px solid #0a246a;
-  border-radius: 8px 8px 4px 4px;
-  box-shadow: 4px 4px 18px rgba(0, 0, 0, 0.45);
+/* Modo inmersivo: oculta toda la interfaz del reproductor y deja
+   únicamente la visualización a pantalla completa. */
+.wmp-window.immersive .title-bar,
+.wmp-window.immersive .menu-bar,
+.wmp-window.immersive .seek-row,
+.wmp-window.immersive .controls-bar,
+.wmp-window.immersive .side-panel,
+.wmp-window.immersive .status-bar {
+  display: none;
+}
+
+.exit-immersive-btn {
+  display: none;
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(10, 20, 40, 0.55);
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+  backdrop-filter: blur(2px);
+}
+
+.exit-immersive-btn:hover {
+  background: rgba(10, 20, 40, 0.8);
+}
+
+.wmp-window.immersive .exit-immersive-btn {
+  display: inline-flex;
 }
 
 /* ===== Barra de título ===== */
@@ -111,9 +141,8 @@ body {
   overflow: hidden;
 }
 
-.wmp-window.restored .visualizer-area {
-  flex: none;
-  height: 380px;
+.wmp-window.immersive .visualizer-area {
+  border: none;
 }
 
 #viz-canvas {

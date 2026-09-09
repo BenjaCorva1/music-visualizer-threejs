@@ -36,6 +36,7 @@ const visualizerArea = document.querySelector(".visualizer-area");
 const tabButtons = document.querySelectorAll(".tab-btn");
 const wmpWindow = document.querySelector(".wmp-window");
 const btnMaximize = document.getElementById("btn-maximize");
+const btnExitImmersive = document.getElementById("btn-exit-immersive");
 
 // ---------- Estado del reproductor ----------
 const playlist = []; // { name, url }
@@ -418,35 +419,78 @@ function createHelpersMode() {
 
 /* =========================================================
    MODO 5 — Planetas cósmicos (psicodélica)
-   Copia del "Radar de helpers" (mismos ArrowHelper, PolarGridHelper,
-   AxesHelper, luces con PointLightHelper y CameraHelper) sumándole
-   un sistema planetario orbitando, un campo de estrellas y colores
-   psicodélicos que ciclan con el tiempo y el audio.
+   La psicodelia acá se arma en dos capas con lógicas separadas:
+   - Fondo: un fractal (Julia set) animado por shader que corre y
+     muta solo, con su propio patrón random — NO sigue al audio.
+   - Centro: una figura estable (el "sol") cuyo color, escala y giro
+     sí están atados a lo que suena, como ancla frente al caos de fondo.
    ========================================================= */
 function createCosmicMode() {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x020208);
 
-  const polarGrid = new THREE.PolarGridHelper(8, 16, 8, 64, 0x225577, 0x113355);
-  scene.add(polarGrid);
+  // ---- Fondo fractal: Julia set en una esfera gigante que envuelve
+  // toda la escena (BackSide, como un skybox). uTime la hace "correr"
+  // (rotación + deriva del parámetro c) y uSeed salta a otra región del
+  // fractal cada tanto — todo en un reloj propio, sin leer el audio.
+  const fractalUniforms = {
+    uTime: { value: 0 },
+    uSeed: { value: new THREE.Vector2(-0.7, 0.27) },
+  };
+  const fractalMat = new THREE.ShaderMaterial({
+    uniforms: fractalUniforms,
+    side: THREE.BackSide,
+    depthWrite: false,
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform float uTime;
+      uniform vec2 uSeed;
+      varying vec2 vUv;
 
-  const axes = new THREE.AxesHelper(6);
-  scene.add(axes);
+      vec3 palette(float t) {
+        vec3 a = vec3(0.5, 0.4, 0.6);
+        vec3 b = vec3(0.5, 0.5, 0.5);
+        vec3 c = vec3(1.0, 0.9, 0.7);
+        vec3 d = vec3(0.3, 0.5, 0.8);
+        return a + b * cos(6.28318 * (c * t + d));
+      }
 
-  const ARROW_COUNT = 48;
-  const arrows = [];
-  for (let i = 0; i < ARROW_COUNT; i++) {
-    const angle = (i / ARROW_COUNT) * Math.PI * 2;
-    const dir = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle)).normalize();
-    const origin = dir.clone().multiplyScalar(2.2);
-    const color = new THREE.Color().setHSL(i / ARROW_COUNT, 0.85, 0.6);
-    const arrow = new THREE.ArrowHelper(dir, origin, 1, color.getHex(), 0.35, 0.18);
-    scene.add(arrow);
-    arrows.push(arrow);
-  }
+      void main() {
+        vec2 uv = (vUv - 0.5) * 3.0;
+        float angle = uTime * 0.03;
+        mat2 rot = mat2(cos(angle), -sin(angle), sin(angle), cos(angle));
+        uv = rot * uv;
 
-  // El "sol" central: mismo icosaedro del radar de helpers, pero con
-  // color emissive que gira por el círculo cromático (efecto psicodélico).
+        vec2 z = uv;
+        vec2 c = uSeed + vec2(cos(uTime * 0.05), sin(uTime * 0.07)) * 0.15;
+
+        float iter = 0.0;
+        const float MAX_ITER = 48.0;
+        for (float i = 0.0; i < MAX_ITER; i++) {
+          z = vec2(z.x * z.x - z.y * z.y, 2.0 * z.x * z.y) + c;
+          if (dot(z, z) > 4.0) break;
+          iter++;
+        }
+
+        float t = iter / MAX_ITER;
+        vec3 color = palette(t + uTime * 0.02) * smoothstep(0.0, 0.15, t);
+        gl_FragColor = vec4(color * 0.85, 1.0);
+      }
+    `,
+  });
+  const fractalSky = new THREE.Mesh(new THREE.SphereGeometry(70, 48, 32), fractalMat);
+  scene.add(fractalSky);
+  let seedTarget = new THREE.Vector2(-0.7, 0.27);
+  let nextSeedPick = 6;
+
+  // El "sol" central: figura estable que ancla la mirada frente al
+  // fondo random. Su color y movimiento sí están atados al audio.
   const coreGeo = new THREE.IcosahedronGeometry(1.1, 1);
   const coreMat = new THREE.MeshStandardMaterial({
     color: 0xffffff,
@@ -458,20 +502,15 @@ function createCosmicMode() {
   const core = new THREE.Mesh(coreGeo, coreMat);
   scene.add(core);
   scene.add(new THREE.AmbientLight(0x334466, 1.5));
+  let coreHue = 0;
 
   const light1 = new THREE.PointLight(0x3388ff, 60, 40);
   light1.position.set(6, 4, 0);
-  const light1Helper = new THREE.PointLightHelper(light1, 0.4);
-  scene.add(light1, light1Helper);
+  scene.add(light1);
 
   const light2 = new THREE.PointLight(0xff3388, 60, 40);
   light2.position.set(-6, 4, 0);
-  const light2Helper = new THREE.PointLightHelper(light2, 0.4);
-  scene.add(light2, light2Helper);
-
-  const dummyCam = new THREE.PerspectiveCamera(45, 1, 1, 12);
-  const camHelper = new THREE.CameraHelper(dummyCam);
-  scene.add(dummyCam, camHelper);
+  scene.add(light2);
 
   // ---- Campo de estrellas ----
   const STAR_COUNT = 900;
@@ -590,31 +629,26 @@ function createCosmicMode() {
   }
 
   function update(dt, t, freqData, avg, bass, playing) {
-    polarGrid.rotation.y += dt * 0.05;
-
-    for (let i = 0; i < ARROW_COUNT; i++) {
-      let value = 0.05;
-      if (playing && freqData) {
-        const bin = Math.floor((i / ARROW_COUNT) * (freqData.length * 0.85));
-        value = (freqData[bin] ?? 0) / 255;
-      } else {
-        value = 0.08 + 0.05 * Math.sin(t * 2 + i * 0.3);
-      }
-      const len = 1 + value * 6;
-      arrows[i].setLength(len, len * 0.25, len * 0.12);
+    // Fondo: corre en su propio reloj (uTime) y muta a un patrón nuevo
+    // cada tanto (uSeed) — deliberadamente ajeno al audio.
+    fractalUniforms.uTime.value = t;
+    if (t > nextSeedPick) {
+      seedTarget.set(THREE.MathUtils.randFloatSpread(1.6), THREE.MathUtils.randFloatSpread(1.6));
+      nextSeedPick = t + 12 + Math.random() * 14;
     }
+    fractalUniforms.uSeed.value.lerp(seedTarget, dt * 0.15);
 
     const pulse = playing ? bass : 0.15 + Math.sin(t * 1.2) * 0.05;
     const energy = playing ? avg : 0.1;
 
-    // Colores psicodélicos: el hue gira solo con el tiempo y salta con el bajo.
-    const hueShift = (t * 0.04 + pulse * 0.3) % 1;
-    core.material.emissive.setHSL(hueShift, 0.9, 0.35 + pulse * 0.25);
-    core.material.color.setHSL((hueShift + 0.5) % 1, 0.6, 0.6);
-    scene.background.setHSL((hueShift + 0.6) % 1, 0.55, 0.02 + pulse * 0.02);
+    // El centro sí sigue a la música: el hue avanza más rápido cuanto
+    // más fuerte/grave suena, y casi se congela si no hay audio.
+    coreHue = (coreHue + dt * (playing ? 0.05 + bass * 0.6 + avg * 0.3 : 0.004)) % 1;
+    core.material.emissive.setHSL(coreHue, 0.9, 0.35 + pulse * 0.25);
+    core.material.color.setHSL((coreHue + 0.5) % 1, 0.6, 0.6);
 
     core.scale.setScalar(1 + pulse * 0.9);
-    core.rotation.y += 0.006;
+    core.rotation.y += 0.003 + energy * 0.02;
     light1.intensity = 40 + pulse * 260;
     light2.intensity = 40 + energy * 260;
 
@@ -641,16 +675,12 @@ function createCosmicMode() {
       m.mesh.scale.y = 1 + pulse * 2;
       if (m.traveled > METEOR_RADIUS * 2 + 5) spawnMeteor(m);
     });
-
-    dummyCam.position.set(Math.cos(t * 0.15) * 9, 5, Math.sin(t * 0.15) * 9);
-    dummyCam.lookAt(0, 0, 0);
-    camHelper.update();
   }
 
   return {
     key: "cosmic",
     label: "Planetas cósmicos (psicodélica)",
-    desc: "Planetas, meteoros cruzando y colores psicodélicos",
+    desc: "Fractal random de fondo + figura central reactiva al audio",
     scene,
     cameraHome: new THREE.Vector3(0, 8, 20),
     lookAt: new THREE.Vector3(0, 0, 0),
@@ -870,15 +900,59 @@ function playPrev() {
   loadTrack(prev, true);
 }
 
-// ---------- Maximizar / restaurar ventana ----------
-// La ventana arranca maximizada (ver .wmp-window en el CSS); este botón
-// alterna con la clase .restored, que la vuelve al tamaño clásico de 820px.
-btnMaximize.addEventListener("click", () => {
-  const isNowRestored = wmpWindow.classList.toggle("restored");
-  btnMaximize.textContent = isNowRestored ? "□" : "❐";
-  btnMaximize.title = isNowRestored ? "Maximizar" : "Restaurar";
+// ---------- Modo inmersivo: solo el efecto, a pantalla completa ----------
+// El botón "expandir" oculta toda la interfaz del reproductor y deja
+// únicamente la visualización. Cuando el navegador lo soporta, también
+// pide pantalla completa real y trata de rotar a horizontal en celulares
+// (Fullscreen API y Screen Orientation API son "best effort": si el
+// navegador no las soporta o las deniega, el modo inmersivo por CSS
+// funciona igual, solo que sin ocultar la barra del navegador).
+async function enterImmersive() {
+  wmpWindow.classList.add("immersive");
+  try {
+    await visualizerArea.requestFullscreen?.();
+  } catch {
+    // Sin fullscreen real (p. ej. iPhone Safari): el modo inmersivo por
+    // CSS igual oculta la interfaz.
+  }
+  try {
+    await screen.orientation?.lock?.("landscape");
+  } catch {
+    // El bloqueo de orientación solo funciona en algunos navegadores
+    // Android y requiere estar en pantalla completa.
+  }
+  resizeRenderer();
+}
+
+function exitImmersive() {
+  wmpWindow.classList.remove("immersive");
+  if (document.fullscreenElement) document.exitFullscreen?.();
+  try {
+    screen.orientation?.unlock?.();
+  } catch {
+    // no-op
+  }
+  resizeRenderer();
+}
+
+btnMaximize.addEventListener("click", enterImmersive);
+btnExitImmersive.addEventListener("click", exitImmersive);
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && wmpWindow.classList.contains("immersive")) exitImmersive();
+});
+
+// Si el usuario sale de pantalla completa con el gesto nativo del
+// navegador (ESC, botón atrás en Android, etc.) en vez de nuestro botón,
+// esto mantiene la interfaz sincronizada.
+document.addEventListener("fullscreenchange", () => {
+  if (!document.fullscreenElement && wmpWindow.classList.contains("immersive")) {
+    exitImmersive();
+  }
   resizeRenderer();
 });
+
+window.addEventListener("orientationchange", () => resizeRenderer());
 
 // ---------- Eventos de UI ----------
 btnOpen.addEventListener("click", () => fileInput.click());
