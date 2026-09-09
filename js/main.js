@@ -732,15 +732,13 @@ function createCosmicMode() {
 }
 
 /* =========================================================
-   MODO 6 — Cuerpo de energía (homenaje a Alex Grey)
-   Referencia: los "Sacred Mirrors" de Alex Grey — una figura humana
-   translúcida con su sistema energético (chakras) a la vista,
-   irradiando líneas de luz sobre un fondo de geometría sagrada. Los
-   7 chakras, apilados sobre una columna, leen cada uno una banda de
-   frecuencia distinta (como un ecualizador vertical) y disparan los
-   rayos que irradian de su cuerpo; el mandala de fondo, como el
-   fractal del modo cósmico, corre en su propio reloj y se mantiene
-   tenue para no taparlos.
+   MODO 6 — Túnel de ojos (homenaje a Alex Grey)
+   Los ojos son un motivo recurrente en su obra. Sin figura central:
+   un campo de ojos nace cerca del centro y avanza hacia afuera, hacia
+   el mandala de geometría sagrada que envuelve la escena (mismo
+   shader que el fractal del modo cósmico, con su propio reloj,
+   independiente del audio). Da una sensación de inmersión, de ir
+   avanzando hacia el fondo que se va generando.
    ========================================================= */
 function createSacredBodyMode() {
   const scene = new THREE.Scene();
@@ -794,107 +792,11 @@ function createSacredBodyMode() {
   scene.add(mandalaSky);
 
   scene.add(new THREE.AmbientLight(0x332244, 1.2));
-  const rimLight = new THREE.PointLight(0xaa88ff, 18, 30);
-  rimLight.position.set(0, 0.5, 5);
-  scene.add(rimLight);
 
-  // ---- Columna de chakras: cada uno lee una banda de frecuencia
-  // distinta, de raíz (graves) a corona (agudos).
-  const CHAKRAS = [
-    { y: -2.4, hue: 0.0 }, // raíz
-    { y: -1.6, hue: 0.08 }, // sacro
-    { y: -0.8, hue: 0.15 }, // plexo solar
-    { y: 0.0, hue: 0.35 }, // corazón
-    { y: 0.8, hue: 0.55 }, // garganta
-    { y: 1.6, hue: 0.72 }, // tercer ojo
-    { y: 2.4, hue: 0.82 }, // corona
-  ];
-  const chakras = CHAKRAS.map((c) => {
-    const baseColor = new THREE.Color().setHSL(c.hue, 0.7, 0.4);
-    const mat = new THREE.MeshStandardMaterial({
-      color: baseColor,
-      emissive: baseColor.clone().multiplyScalar(0.15),
-      metalness: 0.3,
-      roughness: 0.5,
-    });
-    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.32, 24, 24), mat);
-    mesh.position.set(0, c.y, 0);
-    scene.add(mesh);
-    return { mesh, mat, baseColor, y: c.y, hue: c.hue };
-  });
-
-  const spineMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.25 });
-  const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 5.2, 8), spineMat);
-  scene.add(spine);
-
-  // Aura: silueta translúcida que envuelve la columna de chakras,
-  // como el cuerpo energético en los cuadros de Alex Grey.
-  const auraMat = new THREE.MeshBasicMaterial({
-    color: 0xcdb8ff,
-    wireframe: true,
-    transparent: true,
-    opacity: 0.18,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-  });
-  const aura = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 2), auraMat);
-  aura.scale.set(1.15, 3.3, 1.15);
-  scene.add(aura);
-
-  const haloMat = new THREE.MeshBasicMaterial({
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0.4,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-  });
-  const halo = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.025, 8, 60), haloMat);
-  halo.position.set(0, 2.4, 0);
-  halo.rotation.x = Math.PI / 2;
-  scene.add(halo);
-
-  // ---- Rayos de energía: 12 por chakra, en un solo LineSegments para
-  // que actualizar sus 168 vértices por frame sea prácticamente gratis.
-  const RAYS_PER_CHAKRA = 12;
-  const rayData = [];
-  CHAKRAS.forEach((c, ci) => {
-    for (let r = 0; r < RAYS_PER_CHAKRA; r++) {
-      rayData.push({
-        chakraIndex: ci,
-        angle: (r / RAYS_PER_CHAKRA) * Math.PI * 2 + ci * 0.3,
-        y: c.y,
-        spin: (ci % 2 === 0 ? 1 : -1) * (0.15 + Math.random() * 0.15),
-      });
-    }
-  });
-  const rayPositions = new Float32Array(rayData.length * 2 * 3);
-  const rayColors = new Float32Array(rayData.length * 2 * 3);
-  rayData.forEach((rd, i) => {
-    const color = new THREE.Color().setHSL(CHAKRAS[rd.chakraIndex].hue, 0.9, 0.6);
-    for (let v = 0; v < 2; v++) {
-      const idx = (i * 2 + v) * 3;
-      rayColors[idx] = color.r;
-      rayColors[idx + 1] = color.g;
-      rayColors[idx + 2] = color.b;
-    }
-  });
-  const rayGeo = new THREE.BufferGeometry();
-  rayGeo.setAttribute("position", new THREE.BufferAttribute(rayPositions, 3));
-  rayGeo.setAttribute("color", new THREE.BufferAttribute(rayColors, 3));
-  const rayMat = new THREE.LineBasicMaterial({
-    vertexColors: true,
-    transparent: true,
-    opacity: 0.85,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-  });
-  const rays = new THREE.LineSegments(rayGeo, rayMat);
-  scene.add(rays);
-
-  // ---- Ojos avanzando hacia el centro: un motivo recurrente en la obra
-  // de Alex Grey. Nacen lejos, en un punto al azar de una esfera, y
-  // viajan en línea recta hacia el origen; al llegar, renacen en otro
-  // punto lejano — dando la sensación de un túnel de ojos que se acerca.
+  // ---- Ojos avanzando hacia el fondo: un motivo recurrente en la obra
+  // de Alex Grey. Nacen cerca del centro y viajan hacia afuera, hacia el
+  // mandala que envuelve la escena; al llegar, renacen cerca del centro
+  // de nuevo — dando la sensación de avanzar, de ir hacia el fondo.
   function eyeTexture() {
     const size = 128;
     const canvas = document.createElement("canvas");
@@ -930,7 +832,8 @@ function createSacredBodyMode() {
     return texture;
   }
 
-  const EYE_COUNT = 22;
+  const EYE_COUNT = 40;
+  const EYE_MAX_RADIUS = 40;
   const eyeMap = eyeTexture();
   const eyes = [];
 
@@ -938,20 +841,20 @@ function createSacredBodyMode() {
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(THREE.MathUtils.randFloatSpread(2));
     e.dir.set(Math.sin(phi) * Math.cos(theta), Math.sin(phi) * Math.sin(theta), Math.cos(phi));
-    e.radius = 14 + Math.random() * 8;
+    e.radius = 0.3 + Math.random() * 1.2;
     e.sprite.position.copy(e.dir).multiplyScalar(e.radius);
   }
 
   for (let i = 0; i < EYE_COUNT; i++) {
-    const mat = new THREE.SpriteMaterial({ map: eyeMap, transparent: true, depthWrite: false, opacity: 0.9 });
+    const mat = new THREE.SpriteMaterial({ map: eyeMap, transparent: true, depthWrite: false, opacity: 0 });
     const sprite = new THREE.Sprite(mat);
     const size = 0.6 + Math.random() * 0.5;
     sprite.scale.set(size * 1.6, size, 1);
     scene.add(sprite);
-    const e = { sprite, dir: new THREE.Vector3(), radius: 0, speed: 1.8 + Math.random() * 1.6 };
+    const e = { sprite, dir: new THREE.Vector3(), radius: 0, speed: 3 + Math.random() * 2.4 };
     spawnEye(e);
-    // Adelantar cada uno un tramo al azar para que no lleguen todos juntos.
-    e.radius -= Math.random() * 14;
+    // Adelantar cada uno un tramo al azar para que no arranquen todos juntos.
+    e.radius += Math.random() * EYE_MAX_RADIUS;
     e.sprite.position.copy(e.dir).multiplyScalar(e.radius);
     eyes.push(e);
   }
@@ -960,57 +863,24 @@ function createSacredBodyMode() {
     mandalaUniforms.uTime.value = t;
 
     const energy = playing ? avg : 0.12;
-    const chakraLevels = chakras.map((c, i) => {
-      let value = 0.1;
-      if (playing && freqData) {
-        const bin = Math.floor((i / CHAKRAS.length) * (freqData.length * 0.85));
-        value = (freqData[bin] ?? 0) / 255;
-      } else {
-        value = 0.1 + 0.05 * Math.sin(t * 1.5 + i);
-      }
-      c.mesh.scale.setScalar(1 + value * 1.6);
-      c.mat.emissive.copy(c.baseColor).multiplyScalar(0.1 + value * 0.45);
-      return value;
-    });
-
-    const posAttr = rayGeo.attributes.position;
-    rayData.forEach((rd, i) => {
-      const len = 0.5 + chakraLevels[rd.chakraIndex] * 2.6;
-      const angle = rd.angle + t * rd.spin;
-      const idx = i * 6;
-      posAttr.array[idx] = 0;
-      posAttr.array[idx + 1] = rd.y;
-      posAttr.array[idx + 2] = 0;
-      posAttr.array[idx + 3] = Math.cos(angle) * len;
-      posAttr.array[idx + 4] = rd.y;
-      posAttr.array[idx + 5] = Math.sin(angle) * len;
-    });
-    posAttr.needsUpdate = true;
-
-    aura.rotation.y += dt * 0.05;
-    aura.scale.x = 1.15 + energy * 0.15;
-    aura.scale.z = 1.15 + energy * 0.15;
-
-    halo.rotation.z += dt * 0.3;
-    halo.material.opacity = 0.2 + chakraLevels[6] * 0.3;
-    rimLight.intensity = 12 + energy * 90;
-
     const eyeSpeed = 1 + energy * 2.2 + bass * 1.2;
     eyes.forEach((e) => {
-      e.radius -= e.speed * eyeSpeed * dt;
-      if (e.radius < 0.6) {
+      e.radius += e.speed * eyeSpeed * dt;
+      if (e.radius > EYE_MAX_RADIUS) {
         spawnEye(e);
         return;
       }
       e.sprite.position.copy(e.dir).multiplyScalar(e.radius);
-      e.sprite.material.opacity = THREE.MathUtils.smoothstep(e.radius, 0.6, 5) * 0.9;
+      const fadeIn = THREE.MathUtils.smoothstep(e.radius, 0.3, 3);
+      const fadeOut = 1 - THREE.MathUtils.smoothstep(e.radius, EYE_MAX_RADIUS - 10, EYE_MAX_RADIUS);
+      e.sprite.material.opacity = fadeIn * fadeOut * 0.9;
     });
   }
 
   return {
     key: "sacred",
-    label: "Cuerpo de energía (Alex Grey)",
-    desc: "Chakras, líneas de energía y geometría sagrada",
+    label: "Túnel de ojos (Alex Grey)",
+    desc: "Ojos avanzando hacia el fondo, generado random",
     scene,
     cameraHome: new THREE.Vector3(0, 0.3, 12),
     lookAt: new THREE.Vector3(0, 0, 0),

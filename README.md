@@ -51,15 +51,14 @@ Seleccionables desde la pestaña **"Visualizaciones"** del panel lateral
    ecualizador) que sí siguen el ritmo de la música. Alrededor orbitan
    planetas (algunos con anillo tipo Saturno) y cruzan meteoros de punta
    a punta. Es el modo por defecto al abrir la app.
-6. **Cuerpo de energía (Alex Grey)** — homenaje a los "Sacred Mirrors"
-   de [Alex Grey](https://en.wikipedia.org/wiki/Alex_Grey): una figura
-   translúcida con sus 7 chakras a la vista (atenuados a propósito, sin
-   brillo protagónico), cada uno leyendo una banda de frecuencia
-   distinta e irradiando líneas de energía. Un motivo recurrente de su
-   obra: ojos que nacen lejos y avanzan en línea recta hacia el centro,
-   más rápido cuanto más fuerte suena la música. El mandala de fondo,
-   con la misma lógica que el fractal del modo cósmico, corre solo y se
-   mantiene tenue para nunca tapar la escena.
+6. **Túnel de ojos (Alex Grey)** — homenaje a un motivo recurrente en
+   la obra de [Alex Grey](https://en.wikipedia.org/wiki/Alex_Grey): sin
+   figura central, un campo de ~40 ojos nace cerca del centro y avanza
+   hacia afuera, hacia el mandala de geometría sagrada que envuelve la
+   escena, más rápido cuanto más fuerte suena la música — dando una
+   sensación de inmersión, de ir avanzando hacia el fondo. El mandala,
+   con la misma lógica que el fractal del modo cósmico, corre en su
+   propio reloj y se mantiene tenue.
 
 ## Estructura
 
