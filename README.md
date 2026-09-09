@@ -89,6 +89,20 @@ Después abrí `http://localhost:8000` en el navegador.
 7. Arrastrá con el mouse o el dedo sobre la visualización para girar la
    cámara; con la rueda o pellizcando, hacés zoom.
 
+## Por qué a veces tarda en verse el último cambio (caché)
+
+GitHub Pages sirve los archivos con caché HTTP (~10 minutos) que el
+navegador guarda en disco — y esa caché sobrevive aunque cierres el
+navegador. Por eso `index.html` referencia `css/style.css?v=1` y
+`js/main.js?v=1` con un número de versión en la URL: cada vez que se
+modifica alguno de esos dos archivos, hay que subir ese número
+(`?v=2`, `?v=3`, ...) en `index.html`. Al cambiar la URL, el navegador
+la trata como un archivo nuevo y lo descarga de nuevo en vez de usar la
+copia vieja en caché, sin importar cuánto tiempo haya pasado.
+
+Si en algún momento ves código viejo pese a esto, probá un refresco
+forzado (`Ctrl+Shift+R` / `Cmd+Shift+R`) — eso ignora la caché del todo.
+
 ## Ajustar la calidad visual
 
 El brillo (bloom) se configura en `js/main.js`, en la línea donde se crea
