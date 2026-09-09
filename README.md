@@ -8,10 +8,20 @@ imita el look clásico de Windows Media Player.
 
 - **Three.js** (vía CDN, importado como módulo ES + addons `examples/jsm`)
   para el visualizador 3D, con post-procesado (`EffectComposer` +
-  `UnrealBloomPass`) para el brillo neón.
+  `UnrealBloomPass`) para el brillo neón y `OrbitControls` para poder
+  girar/acercar la cámara con mouse o touch.
 - **Web Audio API** (`AnalyserNode`) para analizar las frecuencias del audio
   en tiempo real.
 - HTML/CSS/JS puro, sin frameworks ni build tools.
+
+## Interactuar con la visualización
+
+El canvas responde a mouse y touch (vía `OrbitControls`):
+
+- **Arrastrar** (mouse o un dedo) → orbita la cámara alrededor de la escena.
+- **Rueda del mouse / pellizcar con dos dedos** → zoom in/out.
+- Si soltás y no tocás nada por 4 segundos, la cámara retoma sola una rotación
+  lenta (`autoRotate`) para que la escena no quede estática.
 
 ## Modos de visualización
 
@@ -32,7 +42,11 @@ Seleccionables desde la pestaña **"Visualizaciones"** del panel lateral
    [`webgl_helpers`](https://threejs.org/examples/webgl_helpers.html):
    combina `ArrowHelper`, `PolarGridHelper`, `AxesHelper`,
    `PointLightHelper` y `CameraHelper` reaccionando al audio, con estética
-   de "modo debug".
+   de "modo debug". Es el modo por defecto al abrir la app.
+5. **Planetas cósmicos (trippy)** — copia del "Radar de helpers" (mismos
+   `ArrowHelper`, `PolarGridHelper`, luces) sumándole un sistema planetario
+   orbitando (algunos con anillo tipo Saturno), un campo de estrellas y
+   colores psicodélicos que ciclan con el tiempo y el audio.
 
 ## Estructura
 
@@ -71,7 +85,9 @@ Después abrí `http://localhost:8000` en el navegador.
 4. Mové el volumen y la barra de progreso con los sliders.
 5. Al terminar un tema, pasa solo al siguiente de la playlist.
 6. En la pestaña **"Visualizaciones"** del panel lateral, hacé click en
-   cualquiera de los 4 modos para cambiar la escena en vivo.
+   cualquiera de los 5 modos para cambiar la escena en vivo.
+7. Arrastrá con el mouse o el dedo sobre la visualización para girar la
+   cámara; con la rueda o pellizcando, hacés zoom.
 
 ## Ajustar la calidad visual
 
@@ -90,7 +106,8 @@ Si se ve muy "quemado" o muy tenue, subí/bajá `strength` (intensidad) o
 
 - Bloom selectivo por capas (`layers`) para que solo brillen ciertos
   objetos, como en `webgl_postprocessing_unreal_bloom_selective.html`.
-- Un quinto modo de partículas (`Points` + `BufferGeometry`) reactivo.
+- Texturizar los planetas del modo cósmico (mapas de color/normal en vez
+  de color plano).
 - Guardar la playlist y el modo de visualización elegido en `localStorage`.
 - Ecualizador gráfico real usando bandas de frecuencia (graves/medios/agudos).
 - Soporte de temas/skins (oscuro, "Windows XP Royale", etc).

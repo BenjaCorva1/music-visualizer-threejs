@@ -4,6 +4,7 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { AnaglyphEffect } from "three/addons/effects/AnaglyphEffect.js";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 /* =========================================================
    Proyecto de aprendizaje: Music Visualizer con Three.js
@@ -80,6 +81,30 @@ composer.addPass(bloomPass);
 composer.addPass(new OutputPass());
 
 const anaglyphEffect = new AnaglyphEffect(renderer);
+
+// Controles con mouse (arrastrar = orbitar, rueda = zoom) y touch
+// (un dedo = orbitar, pellizcar = zoom). Cada modo ya no mueve la
+// cámara a mano frame a frame; en reposo, autoRotate le da vida.
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.07;
+controls.enablePan = false;
+controls.minDistance = 3;
+controls.maxDistance = 55;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.6;
+
+let resumeAutoRotateTimer = null;
+controls.addEventListener("start", () => {
+  controls.autoRotate = false;
+  clearTimeout(resumeAutoRotateTimer);
+});
+controls.addEventListener("end", () => {
+  clearTimeout(resumeAutoRotateTimer);
+  resumeAutoRotateTimer = setTimeout(() => {
+    controls.autoRotate = true;
+  }, 4000);
+});
 
 const clock = new THREE.Clock();
 
@@ -177,10 +202,6 @@ function createCircularMode() {
     sphere.rotation.y += 0.004;
     sphere.rotation.x += 0.0015;
     barGroup.rotation.y += 0.0015;
-    camera.position.x = Math.sin(t * 0.08) * 2;
-    camera.position.y = 4;
-    camera.position.z = 14;
-    camera.lookAt(0, 0, 0);
   }
 
   return {
@@ -291,8 +312,6 @@ function createTerrainMode() {
       writeNewRow(freqData, playing, t);
       applyHeightsToGeometry();
     }
-    camera.position.set(Math.sin(t * 0.1) * 2, 9 + Math.sin(t * 0.5) * 0.3, 20);
-    camera.lookAt(0, -1, -10);
   }
 
   return {
@@ -384,9 +403,6 @@ function createHelpersMode() {
     dummyCam.position.set(Math.cos(t * 0.15) * 9, 5, Math.sin(t * 0.15) * 9);
     dummyCam.lookAt(0, 0, 0);
     camHelper.update();
-
-    camera.position.set(Math.sin(t * 0.08) * 3, 10, 16);
-    camera.lookAt(0, 0, 0);
   }
 
   return {
@@ -401,6 +417,190 @@ function createHelpersMode() {
 }
 
 /* =========================================================
+   MODO 5 — Planetas cósmicos (trippy)
+   Copia del "Radar de helpers" (mismos ArrowHelper, PolarGridHelper,
+   AxesHelper, luces con PointLightHelper y CameraHelper) sumándole
+   un sistema planetario orbitando, un campo de estrellas y colores
+   psicodélicos que ciclan con el tiempo y el audio.
+   ========================================================= */
+function createCosmicMode() {
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x020208);
+
+  const polarGrid = new THREE.PolarGridHelper(8, 16, 8, 64, 0x225577, 0x113355);
+  scene.add(polarGrid);
+
+  const axes = new THREE.AxesHelper(6);
+  scene.add(axes);
+
+  const ARROW_COUNT = 48;
+  const arrows = [];
+  for (let i = 0; i < ARROW_COUNT; i++) {
+    const angle = (i / ARROW_COUNT) * Math.PI * 2;
+    const dir = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle)).normalize();
+    const origin = dir.clone().multiplyScalar(2.2);
+    const color = new THREE.Color().setHSL(i / ARROW_COUNT, 0.85, 0.6);
+    const arrow = new THREE.ArrowHelper(dir, origin, 1, color.getHex(), 0.35, 0.18);
+    scene.add(arrow);
+    arrows.push(arrow);
+  }
+
+  // El "sol" central: mismo icosaedro del radar de helpers, pero con
+  // color emissive que gira por el círculo cromático (efecto trippy).
+  const coreGeo = new THREE.IcosahedronGeometry(1.1, 1);
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    emissive: 0x102050,
+    wireframe: true,
+    metalness: 0.4,
+    roughness: 0.3,
+  });
+  const core = new THREE.Mesh(coreGeo, coreMat);
+  scene.add(core);
+  scene.add(new THREE.AmbientLight(0x334466, 1.5));
+
+  const light1 = new THREE.PointLight(0x3388ff, 60, 40);
+  light1.position.set(6, 4, 0);
+  const light1Helper = new THREE.PointLightHelper(light1, 0.4);
+  scene.add(light1, light1Helper);
+
+  const light2 = new THREE.PointLight(0xff3388, 60, 40);
+  light2.position.set(-6, 4, 0);
+  const light2Helper = new THREE.PointLightHelper(light2, 0.4);
+  scene.add(light2, light2Helper);
+
+  const dummyCam = new THREE.PerspectiveCamera(45, 1, 1, 12);
+  const camHelper = new THREE.CameraHelper(dummyCam);
+  scene.add(dummyCam, camHelper);
+
+  // ---- Campo de estrellas ----
+  const STAR_COUNT = 900;
+  const starPositions = new Float32Array(STAR_COUNT * 3);
+  for (let i = 0; i < STAR_COUNT; i++) {
+    const r = 20 + Math.random() * 35;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(THREE.MathUtils.randFloatSpread(2));
+    starPositions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+    starPositions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    starPositions[i * 3 + 2] = r * Math.cos(phi);
+  }
+  const starGeo = new THREE.BufferGeometry();
+  starGeo.setAttribute("position", new THREE.BufferAttribute(starPositions, 3));
+  const starMat = new THREE.PointsMaterial({
+    color: 0xaad4ff,
+    size: 0.12,
+    sizeAttenuation: true,
+    transparent: true,
+    opacity: 0.85,
+  });
+  const stars = new THREE.Points(starGeo, starMat);
+  scene.add(stars);
+
+  // ---- Sistema planetario ----
+  const PLANET_COUNT = 6;
+  const planets = [];
+  for (let i = 0; i < PLANET_COUNT; i++) {
+    const group = new THREE.Group();
+    const orbitRadius = 3.5 + i * 1.6;
+    const size = 0.25 + Math.random() * 0.35;
+    const hue = i / PLANET_COUNT;
+    const color = new THREE.Color().setHSL(hue, 0.8, 0.6);
+
+    const planetMat = new THREE.MeshStandardMaterial({
+      color,
+      emissive: color.clone().multiplyScalar(0.35),
+      metalness: 0.3,
+      roughness: 0.5,
+    });
+    const planet = new THREE.Mesh(new THREE.SphereGeometry(size, 20, 20), planetMat);
+    group.add(planet);
+
+    // Un par de "planetas" con anillo, estilo Saturno.
+    if (i % 2 === 0) {
+      const ringGeo = new THREE.RingGeometry(size * 1.6, size * 2.4, 48);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: color.clone().offsetHSL(0, 0, 0.2),
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.6,
+      });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.rotation.x = Math.PI / 2.3;
+      planet.add(ring);
+    }
+
+    scene.add(group);
+    planets.push({
+      group,
+      planet,
+      orbitRadius,
+      orbitSpeed: 0.15 + Math.random() * 0.25,
+      phase: Math.random() * Math.PI * 2,
+      bobSpeed: 0.6 + Math.random() * 0.8,
+    });
+  }
+
+  function update(dt, t, freqData, avg, bass, playing) {
+    polarGrid.rotation.y += dt * 0.05;
+
+    for (let i = 0; i < ARROW_COUNT; i++) {
+      let value = 0.05;
+      if (playing && freqData) {
+        const bin = Math.floor((i / ARROW_COUNT) * (freqData.length * 0.85));
+        value = (freqData[bin] ?? 0) / 255;
+      } else {
+        value = 0.08 + 0.05 * Math.sin(t * 2 + i * 0.3);
+      }
+      const len = 1 + value * 6;
+      arrows[i].setLength(len, len * 0.25, len * 0.12);
+    }
+
+    const pulse = playing ? bass : 0.15 + Math.sin(t * 1.2) * 0.05;
+    const energy = playing ? avg : 0.1;
+
+    // Colores psicodélicos: el hue gira solo con el tiempo y salta con el bajo.
+    const hueShift = (t * 0.04 + pulse * 0.3) % 1;
+    core.material.emissive.setHSL(hueShift, 0.9, 0.35 + pulse * 0.25);
+    core.material.color.setHSL((hueShift + 0.5) % 1, 0.6, 0.6);
+    scene.background.setHSL((hueShift + 0.6) % 1, 0.55, 0.02 + pulse * 0.02);
+
+    core.scale.setScalar(1 + pulse * 0.9);
+    core.rotation.y += 0.006;
+    light1.intensity = 40 + pulse * 260;
+    light2.intensity = 40 + energy * 260;
+
+    stars.rotation.y += dt * (0.01 + energy * 0.04);
+
+    planets.forEach((p, i) => {
+      const speed = p.orbitSpeed * (1 + energy * 1.5);
+      const angle = t * speed + p.phase;
+      const wobble = 1 + pulse * 0.5;
+      p.group.position.set(
+        Math.cos(angle) * p.orbitRadius * wobble,
+        Math.sin(t * p.bobSpeed + p.phase) * 0.6,
+        Math.sin(angle) * p.orbitRadius * wobble
+      );
+      p.planet.rotation.y += dt * 1.5;
+      p.planet.scale.setScalar(1 + pulse * 0.6);
+    });
+
+    dummyCam.position.set(Math.cos(t * 0.15) * 9, 5, Math.sin(t * 0.15) * 9);
+    dummyCam.lookAt(0, 0, 0);
+    camHelper.update();
+  }
+
+  return {
+    key: "cosmic",
+    label: "Planetas cósmicos (trippy)",
+    desc: "Planetas orbitando + colores psicodélicos",
+    scene,
+    cameraHome: new THREE.Vector3(0, 8, 20),
+    lookAt: new THREE.Vector3(0, 0, 0),
+    update,
+  };
+}
+
+/* =========================================================
    Registro de modos + modo 3 (Anáglifo), que reutiliza la
    escena del espectro circular pero cambia la técnica de
    render (par estéreo rojo/cian), como en
@@ -409,6 +609,7 @@ function createHelpersMode() {
 const circularMode = createCircularMode();
 const terrainMode = createTerrainMode();
 const helpersMode = createHelpersMode();
+const cosmicMode = createCosmicMode();
 
 const anaglyphMode = {
   key: "anaglyph",
@@ -421,7 +622,7 @@ const anaglyphMode = {
   update: circularMode.update,
 };
 
-const modes = [helpersMode, circularMode, terrainMode, anaglyphMode];
+const modes = [helpersMode, cosmicMode, circularMode, terrainMode, anaglyphMode];
 let activeMode = modes[0];
 
 function setMode(key) {
@@ -429,7 +630,10 @@ function setMode(key) {
   if (!mode) return;
   activeMode = mode;
   camera.position.copy(mode.cameraHome);
-  camera.lookAt(mode.lookAt);
+  camera.fov = 55;
+  camera.updateProjectionMatrix();
+  controls.target.copy(mode.lookAt);
+  controls.update();
   vizModeLabel.textContent = `Visualización: ${mode.label}`;
   renderEffectsList();
 }
@@ -478,6 +682,7 @@ function animate() {
   const { avg, bass } = computeAudioLevels();
 
   activeMode.update(dt, t, freqData, avg, bass, isPlaying);
+  controls.update();
 
   if (activeMode.isAnaglyph) {
     anaglyphEffect.render(activeMode.scene, camera);
