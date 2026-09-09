@@ -540,6 +540,55 @@ function createCosmicMode() {
     });
   }
 
+  // ---- Meteoros: cruzan toda la escena de punta a punta, dándole
+  // movimiento constante a la experiencia (no solo cosas girando en el
+  // lugar). Cuando salen del otro lado, renacen con una trayectoria nueva.
+  function randomDirection() {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(THREE.MathUtils.randFloatSpread(2));
+    return new THREE.Vector3(Math.sin(phi) * Math.cos(theta), Math.sin(phi) * Math.sin(theta), Math.cos(phi));
+  }
+
+  const METEOR_COUNT = 14;
+  const METEOR_RADIUS = 28;
+  const meteorGeo = new THREE.CylinderGeometry(0.025, 0.07, 1.6, 6);
+  const meteors = [];
+
+  function spawnMeteor(m) {
+    const dir = randomDirection();
+    const start = dir.clone().multiplyScalar(METEOR_RADIUS);
+    const wobble = new THREE.Vector3(
+      THREE.MathUtils.randFloatSpread(6),
+      THREE.MathUtils.randFloatSpread(6),
+      THREE.MathUtils.randFloatSpread(6)
+    );
+    const end = dir.clone().multiplyScalar(-METEOR_RADIUS).add(wobble);
+    m.velocity.copy(end).sub(start).normalize();
+    m.mesh.position.copy(start);
+    m.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), m.velocity);
+    m.mesh.material.color.setHSL(Math.random(), 0.9, 0.7);
+    m.traveled = 0;
+  }
+
+  for (let i = 0; i < METEOR_COUNT; i++) {
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const mesh = new THREE.Mesh(meteorGeo, mat);
+    scene.add(mesh);
+    const m = { mesh, velocity: new THREE.Vector3(), traveled: 0, speedFactor: 0.7 + Math.random() * 0.6 };
+    spawnMeteor(m);
+    // Adelantar cada uno una distancia al azar para que no crucen todos juntos.
+    const headStart = Math.random() * METEOR_RADIUS * 2;
+    m.mesh.position.addScaledVector(m.velocity, headStart);
+    m.traveled = headStart;
+    meteors.push(m);
+  }
+
   function update(dt, t, freqData, avg, bass, playing) {
     polarGrid.rotation.y += dt * 0.05;
 
@@ -584,6 +633,15 @@ function createCosmicMode() {
       p.planet.scale.setScalar(1 + pulse * 0.6);
     });
 
+    const meteorSpeed = 10 * (1 + energy * 1.8 + pulse * 0.6);
+    meteors.forEach((m) => {
+      const step = meteorSpeed * m.speedFactor * dt;
+      m.mesh.position.addScaledVector(m.velocity, step);
+      m.traveled += step;
+      m.mesh.scale.y = 1 + pulse * 2;
+      if (m.traveled > METEOR_RADIUS * 2 + 5) spawnMeteor(m);
+    });
+
     dummyCam.position.set(Math.cos(t * 0.15) * 9, 5, Math.sin(t * 0.15) * 9);
     dummyCam.lookAt(0, 0, 0);
     camHelper.update();
@@ -592,7 +650,7 @@ function createCosmicMode() {
   return {
     key: "cosmic",
     label: "Planetas cósmicos (psicodélica)",
-    desc: "Planetas orbitando + colores psicodélicos",
+    desc: "Planetas, meteoros cruzando y colores psicodélicos",
     scene,
     cameraHome: new THREE.Vector3(0, 8, 20),
     lookAt: new THREE.Vector3(0, 0, 0),
@@ -622,7 +680,7 @@ const anaglyphMode = {
   update: circularMode.update,
 };
 
-const modes = [helpersMode, cosmicMode, circularMode, terrainMode, anaglyphMode];
+const modes = [cosmicMode, helpersMode, circularMode, terrainMode, anaglyphMode];
 let activeMode = modes[0];
 
 function setMode(key) {
@@ -672,7 +730,7 @@ function resizeRenderer() {
 }
 window.addEventListener("resize", resizeRenderer);
 resizeRenderer();
-setMode("helpers");
+setMode("cosmic");
 
 // ---------- Loop de animación ----------
 function animate() {

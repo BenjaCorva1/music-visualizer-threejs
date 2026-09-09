@@ -42,11 +42,13 @@ Seleccionables desde la pestaña **"Visualizaciones"** del panel lateral
    [`webgl_helpers`](https://threejs.org/examples/webgl_helpers.html):
    combina `ArrowHelper`, `PolarGridHelper`, `AxesHelper`,
    `PointLightHelper` y `CameraHelper` reaccionando al audio, con estética
-   de "modo debug". Es el modo por defecto al abrir la app.
+   de "modo debug".
 5. **Planetas cósmicos (psicodélica)** — copia del "Radar de helpers" (mismos
    `ArrowHelper`, `PolarGridHelper`, luces) sumándole un sistema planetario
-   orbitando (algunos con anillo tipo Saturno), un campo de estrellas y
-   colores psicodélicos que ciclan con el tiempo y el audio.
+   orbitando (algunos con anillo tipo Saturno), un campo de estrellas,
+   meteoros que cruzan la escena de punta a punta (más rápido cuanto más
+   fuerte suena el audio) y colores psicodélicos que ciclan con el tiempo.
+   Es el modo por defecto al abrir la app.
 
 ## Estructura
 
