@@ -67,13 +67,10 @@
       </div>
 
       <button id="btn-open" class="open-btn">📂 Abrir archivo</button>
-      <input
-        type="file"
-        id="file-input"
-        accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.opus"
-        multiple
-        hidden
-      />
+      <!-- Sin "accept": en iOS y Android el atributo hace que el picker del
+           sistema filtre (y a veces oculte) archivos válidos de forma
+           distinta según la plataforma. Se valida el tipo en main.js. -->
+      <input type="file" id="file-input" multiple hidden />
     </div>
 
     <!-- Panel lateral: Lista de reproducción / Visualizaciones -->

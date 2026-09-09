@@ -500,14 +500,41 @@ function formatTime(seconds) {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
+// El "type" MIME que reporta el navegador es poco confiable en móviles
+// (a veces llega vacío), así que también se acepta por extensión.
+const AUDIO_EXTENSION_RE = /\.(mp3|wav|ogg|m4a|aac|flac|opus|wma|aiff?|caf)$/i;
+
+function isAudioFile(file) {
+  return (file.type && file.type.startsWith("audio/")) || AUDIO_EXTENSION_RE.test(file.name);
+}
+
 function addFilesToPlaylist(files) {
+  const accepted = [];
+  let rejectedCount = 0;
+
   Array.from(files).forEach((file) => {
+    if (isAudioFile(file)) {
+      accepted.push(file);
+    } else {
+      rejectedCount++;
+    }
+  });
+
+  accepted.forEach((file) => {
     const url = URL.createObjectURL(file);
     playlist.push({ name: file.name, url });
   });
+
   renderPlaylist();
   if (currentIndex === -1 && playlist.length > 0) {
     loadTrack(0);
+  }
+
+  if (rejectedCount > 0) {
+    statusText.textContent =
+      accepted.length > 0
+        ? `Se agregaron ${accepted.length} archivo(s). ${rejectedCount} no eran de audio.`
+        : `Ningún archivo válido: elegí un MP3, WAV, M4A, OGG, AAC o FLAC.`;
   }
 }
 
@@ -636,6 +663,5 @@ audio.addEventListener("ended", () => {
   })
 );
 visualizerArea.addEventListener("drop", (e) => {
-  const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith("audio/"));
-  if (files.length > 0) addFilesToPlaylist(files);
+  addFilesToPlaylist(e.dataTransfer.files);
 });
