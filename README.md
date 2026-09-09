@@ -63,12 +63,14 @@ Seleccionables desde la pestaña **"Visualizaciones"** del panel lateral
    destruir geometría) de 10 anillos de geometría sagrada que avanzan
    hacia la cámara mientras se expanden en el lugar, cada uno con su
    propia fase escalonada, velocidad de rotación y color (hash
-   determinístico por anillo + ciclo — nunca parpadeo aleatorio). Al
-   fondo, en el punto de fuga, una figura humana de baja poligonización
-   (pose tipo Vitruvio) en wireframe glow que pulsa con el bajo. El
-   bajo también acelera el avance por el túnel y acerca la fase entre
-   anillos; el volumen controla el brillo general; cada anillo lee su
-   propia banda de frecuencia. **Solo en modo inmersivo** (botón ⛶):
+   determinístico por anillo + ciclo — nunca parpadeo aleatorio). Una
+   figura humana de baja poligonización (pose tipo Vitruvio, wireframe
+   glow) es la que entra al túnel: viaja desde la entrada hacia el
+   fondo atravesando los anillos, en dirección contraria a como fluyen
+   ellos, y pulsa con el bajo. El bajo también acelera su avance y el
+   de los anillos, y acerca la fase entre anillos; el volumen controla
+   el brillo general; cada anillo lee su propia banda de frecuencia.
+   **Solo en modo inmersivo** (botón ⛶):
    un tap o la flecha derecha ciclan entre 4 variantes (paleta,
    separación de fase, orden geométrico, figura visible u oculta) con
    una transición de ~0.8s, no un corte abrupto.

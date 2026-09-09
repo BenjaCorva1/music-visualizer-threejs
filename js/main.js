@@ -925,7 +925,11 @@ function createMandalaMode() {
   const NEAR_Z = 2.5;
   const TUNNEL_LENGTH = RING_COUNT * Z_SPACING;
   const FAR_Z = NEAR_Z - TUNNEL_LENGTH;
-  const FIGURE_Z = FAR_Z - 4;
+
+  // La figura recorre un tramo más largo que el de los anillos, para
+  // que se la vea atravesarlos y perderse más allá del más lejano.
+  const FIGURE_TRAVEL_LENGTH = TUNNEL_LENGTH + 10;
+  const FIGURE_START_Z = NEAR_Z - 0.5;
 
   function frac(x) {
     return x - Math.floor(x);
@@ -1007,10 +1011,12 @@ function createMandalaMode() {
   }
 
   // ---- Figura humana (primitivas de baja poligonización, pose tipo
-  // Vitruvio) en el punto de fuga del túnel. Wireframe + additive para
-  // que el bloom la lea como silueta luminosa, no como modelo realista.
+  // Vitruvio): es ella la que entra al túnel, viajando desde cerca de
+  // la cámara hacia el fondo, atravesando los anillos. Wireframe +
+  // additive para que el bloom la lea como silueta luminosa, no como
+  // modelo realista.
   const figureGroup = new THREE.Group();
-  figureGroup.position.set(0, 0, FIGURE_Z);
+  figureGroup.position.set(0, 0, FIGURE_START_Z);
   scene.add(figureGroup);
 
   const figureMat = new THREE.MeshBasicMaterial({
@@ -1071,8 +1077,10 @@ function createMandalaMode() {
   let smoothBass = 0;
   let smoothAvg = 0;
   let scrollZ = 0;
+  let figureScrollZ = 0;
   const BASE_CYCLE_LENGTH = 3.0;
   const BASE_SCROLL_SPEED = 2.2;
+  const FIGURE_BASE_SPEED = 1.6; // más lento que los anillos: entra caminando, no volando
   const tmpColor = new THREE.Color();
 
   function update(dt, t, freqData, avg, bass, playing) {
@@ -1180,10 +1188,24 @@ function createMandalaMode() {
       ring.mesh.scale.setScalar(radius_i);
     });
 
+    // ---- La figura entra al túnel: viaja desde la entrada (cerca de
+    // cámara) hacia el fondo, atravesando los anillos, y al llegar al
+    // final vuelve a arrancar desde la entrada (mismo módulo que los
+    // anillos, con fade en las puntas para que el reset no se note).
+    const figureSpeed = FIGURE_BASE_SPEED * (1 + smoothBass * 0.6);
+    figureScrollZ += figureSpeed * dt;
+    const figureTravelRaw = mod(figureScrollZ, FIGURE_TRAVEL_LENGTH);
+    figureGroup.position.z = FIGURE_START_Z - figureTravelRaw;
+
+    const figureTravelFrac = figureTravelRaw / FIGURE_TRAVEL_LENGTH;
+    const figureZFade =
+      THREE.MathUtils.smoothstep(figureTravelFrac, 0, 0.06) *
+      (1 - THREE.MathUtils.smoothstep(figureTravelFrac, 0.94, 1));
+
     const bassPulse = playing ? bass : 0.1 + Math.sin(t * 1.1) * 0.03;
     figureGroup.scale.setScalar(1 + bassPulse * 0.25);
     figureGroup.rotation.y += dt * 0.15;
-    figureMat.opacity = figureVisibility * (0.55 + smoothAvg * 0.4);
+    figureMat.opacity = figureVisibility * figureZFade * (0.55 + smoothAvg * 0.4);
 
     tunnelLight.intensity = 14 + smoothAvg * 90;
   }
