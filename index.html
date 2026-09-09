@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Music Visualizer — Windows Media Player Style</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="wmp-window">
+
+    <!-- Barra de título -->
+    <div class="title-bar">
+      <div class="title-bar-text">
+        <span class="title-icon">🎵</span> Music Visualizer
+      </div>
+      <div class="title-bar-buttons">
+        <button class="tb-btn">_</button>
+        <button class="tb-btn">□</button>
+        <button class="tb-btn tb-close">✕</button>
+      </div>
+    </div>
+
+    <!-- Barra de menú -->
+    <div class="menu-bar">
+      <span>Archivo</span>
+      <span>Ver</span>
+      <span>Reproducir</span>
+      <span>Herramientas</span>
+      <span>Ayuda</span>
+    </div>
+
+    <!-- Área de visualización (Three.js) -->
+    <div class="visualizer-area">
+      <canvas id="viz-canvas"></canvas>
+
+      <div class="now-playing-overlay">
+        <div class="marquee-wrap">
+          <div id="track-title" class="marquee-text">Ningún archivo cargado — abrí un MP3 para comenzar</div>
+        </div>
+      </div>
+
+      <div id="drop-hint" class="drop-hint">
+        Arrastrá un archivo de audio aquí o usá el botón "Abrir archivo"
+      </div>
+    </div>
+
+    <!-- Barra de progreso -->
+    <div class="seek-row">
+      <span id="time-current" class="time-label">00:00</span>
+      <input type="range" id="seek-bar" class="seek-bar" min="0" max="100" value="0" step="0.1" />
+      <span id="time-duration" class="time-label">00:00</span>
+    </div>
+
+    <!-- Controles de transporte -->
+    <div class="controls-bar">
+      <div class="transport-controls">
+        <button id="btn-prev" class="ctrl-btn" title="Anterior">⏮</button>
+        <button id="btn-play" class="ctrl-btn ctrl-btn-main" title="Reproducir">▶</button>
+        <button id="btn-stop" class="ctrl-btn" title="Detener">⏹</button>
+        <button id="btn-next" class="ctrl-btn" title="Siguiente">⏭</button>
+      </div>
+
+      <div class="volume-controls">
+        <span class="vol-icon">🔊</span>
+        <input type="range" id="volume-bar" class="volume-bar" min="0" max="100" value="80" />
+      </div>
+
+      <button id="btn-open" class="open-btn">📂 Abrir archivo</button>
+      <input type="file" id="file-input" accept="audio/*" multiple hidden />
+    </div>
+
+    <!-- Panel lateral: Lista de reproducción / Visualizaciones -->
+    <div class="side-panel">
+      <div class="panel-tabs">
+        <button class="tab-btn active" data-tab="playlist">Lista de reproducción</button>
+        <button class="tab-btn" data-tab="effects">Visualizaciones</button>
+      </div>
+      <ul id="playlist" class="panel-list"></ul>
+      <ul id="effects-list" class="panel-list hidden"></ul>
+    </div>
+
+    <!-- Barra de estado -->
+    <div class="status-bar">
+      <span id="status-text">Listo</span>
+      <span id="viz-mode-label">Visualización: cargando…</span>
+    </div>
+
+  </div>
+
+  <audio id="audio-player" crossorigin="anonymous"></audio>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

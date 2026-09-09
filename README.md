@@ -1,0 +1,96 @@
+# Music Visualizer — Three.js + estilo Windows Media Player
+
+Proyecto de aprendizaje: un reproductor de música con visualizador 3D hecho con
+[Three.js](https://threejs.org/) y la Web Audio API, con una interfaz que
+imita el look clásico de Windows Media Player.
+
+## Qué usa
+
+- **Three.js** (vía CDN, importado como módulo ES + addons `examples/jsm`)
+  para el visualizador 3D, con post-procesado (`EffectComposer` +
+  `UnrealBloomPass`) para el brillo neón.
+- **Web Audio API** (`AnalyserNode`) para analizar las frecuencias del audio
+  en tiempo real.
+- HTML/CSS/JS puro, sin frameworks ni build tools.
+
+## Modos de visualización
+
+Seleccionables desde la pestaña **"Visualizaciones"** del panel lateral
+(al lado de la lista de reproducción):
+
+1. **Espectro circular** — barras 3D dispuestas en círculo + esfera central,
+   con bloom para el brillo neón.
+2. **Terreno de ondas** — inspirado en
+   [`webgl_geometry_terrain_raycast`](https://threejs.org/examples/webgl_geometry_terrain_raycast.html):
+   una malla de terreno que se desplaza hacia la cámara, con la altura de
+   cada fila generada en vivo a partir del espectro de frecuencias.
+3. **Anáglifo 3D (rojo/cian)** — mismo contenido del espectro circular,
+   pero renderizado con
+   [`AnaglyphEffect`](https://threejs.org/examples/webgl_effects_anaglyph.html)
+   (estereoscopía roja/cian real — usá lentes 3D para ver la profundidad).
+4. **Radar de helpers** — inspirado en
+   [`webgl_helpers`](https://threejs.org/examples/webgl_helpers.html):
+   combina `ArrowHelper`, `PolarGridHelper`, `AxesHelper`,
+   `PointLightHelper` y `CameraHelper` reaccionando al audio, con estética
+   de "modo debug".
+
+## Estructura
+
+```
+music-visualizer-threejs/
+├── index.html      # Interfaz estilo WMP (barra de título, controles, playlist)
+├── css/style.css   # Skin visual clásico (azules, biselados, marquee)
+├── js/main.js      # Lógica del reproductor + escena Three.js
+└── README.md
+```
+
+## Cómo ejecutarlo
+
+Los módulos ES (`import * as THREE from "three"`) no funcionan abriendo
+`index.html` directamente con doble clic (protocolo `file://` bloquea los
+imports por CORS). Hay que servirlo con un servidor local simple:
+
+```bash
+cd music-visualizer-threejs
+
+# Opción 1: Python (ya viene instalado en la mayoría de sistemas)
+python3 -m http.server 8000
+
+# Opción 2: Node (si tenés npx)
+npx serve .
+```
+
+Después abrí `http://localhost:8000` en el navegador.
+
+## Cómo usarlo
+
+1. Click en **"📂 Abrir archivo"** (o arrastrá un MP3/WAV a la pantalla negra
+   de visualización).
+2. Se agrega a la lista de reproducción y arranca a sonar automáticamente.
+3. Usá los controles ⏮ ▶/⏸ ⏹ ⏭ como en cualquier reproductor.
+4. Mové el volumen y la barra de progreso con los sliders.
+5. Al terminar un tema, pasa solo al siguiente de la playlist.
+6. En la pestaña **"Visualizaciones"** del panel lateral, hacé click en
+   cualquiera de los 4 modos para cambiar la escena en vivo.
+
+## Ajustar la calidad visual
+
+El brillo (bloom) se configura en `js/main.js`, en la línea donde se crea
+`bloomPass`:
+
+```js
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), 1.1, 0.5, 0.2);
+// parámetros: resolución, strength (intensidad), radius (difusión), threshold (umbral)
+```
+
+Si se ve muy "quemado" o muy tenue, subí/bajá `strength` (intensidad) o
+`threshold` (cuánto brillo necesita un píxel para empezar a resplandecer).
+
+## Ideas para seguir aprendiendo (próximos pasos)
+
+- Bloom selectivo por capas (`layers`) para que solo brillen ciertos
+  objetos, como en `webgl_postprocessing_unreal_bloom_selective.html`.
+- Un quinto modo de partículas (`Points` + `BufferGeometry`) reactivo.
+- Guardar la playlist y el modo de visualización elegido en `localStorage`.
+- Ecualizador gráfico real usando bandas de frecuencia (graves/medios/agudos).
+- Soporte de temas/skins (oscuro, "Windows XP Royale", etc).
