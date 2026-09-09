@@ -453,9 +453,11 @@ function createCosmicMode() {
       uniform vec2 uSeed;
       varying vec2 vUv;
 
+      // Paleta con menos amplitud (0.3 en vez de 0.5): nunca llega a
+      // blanco puro, así el fondo se mantiene apagado frente al centro.
       vec3 palette(float t) {
-        vec3 a = vec3(0.5, 0.4, 0.6);
-        vec3 b = vec3(0.5, 0.5, 0.5);
+        vec3 a = vec3(0.35, 0.28, 0.4);
+        vec3 b = vec3(0.3, 0.3, 0.3);
         vec3 c = vec3(1.0, 0.9, 0.7);
         vec3 d = vec3(0.3, 0.5, 0.8);
         return a + b * cos(6.28318 * (c * t + d));
@@ -471,16 +473,21 @@ function createCosmicMode() {
         vec2 c = uSeed + vec2(cos(uTime * 0.05), sin(uTime * 0.07)) * 0.15;
 
         float iter = 0.0;
+        bool escaped = false;
         const float MAX_ITER = 48.0;
         for (float i = 0.0; i < MAX_ITER; i++) {
           z = vec2(z.x * z.x - z.y * z.y, 2.0 * z.x * z.y) + c;
-          if (dot(z, z) > 4.0) break;
+          if (dot(z, z) > 4.0) { escaped = true; break; }
           iter++;
         }
 
+        // El interior del set (nunca escapa) queda directamente negro:
+        // sin eso, esas zonas grandes salían a brillo pleno y tapaban
+        // el centro. Solo el borde del fractal, donde está el detalle,
+        // se colorea — y con un techo de brillo bajo (* 0.4).
         float t = iter / MAX_ITER;
-        vec3 color = palette(t + uTime * 0.02) * smoothstep(0.0, 0.15, t);
-        gl_FragColor = vec4(color * 0.85, 1.0);
+        vec3 color = escaped ? palette(t + uTime * 0.02) * smoothstep(0.0, 0.55, t) : vec3(0.0);
+        gl_FragColor = vec4(color * 0.4, 1.0);
       }
     `,
   });
@@ -511,6 +518,28 @@ function createCosmicMode() {
   const light2 = new THREE.PointLight(0xff3388, 60, 40);
   light2.position.set(-6, 4, 0);
   scene.add(light2);
+
+  // ---- Barras de nivel: un anillo de barras verticales pegado al
+  // centro, como un ecualizador, para que siempre haya algo marcando
+  // el ritmo de la música (a diferencia del fondo, que no la sigue).
+  const LEVEL_BAR_COUNT = 32;
+  const levelBarRadius = 2.6;
+  const levelBars = [];
+  const levelBarGeo = new THREE.BoxGeometry(0.12, 1, 0.12);
+  for (let i = 0; i < LEVEL_BAR_COUNT; i++) {
+    const angle = (i / LEVEL_BAR_COUNT) * Math.PI * 2;
+    const color = new THREE.Color().setHSL(i / LEVEL_BAR_COUNT, 0.55, 0.45);
+    const mat = new THREE.MeshStandardMaterial({
+      color,
+      emissive: color.clone().multiplyScalar(0.4),
+      metalness: 0.2,
+      roughness: 0.6,
+    });
+    const bar = new THREE.Mesh(levelBarGeo, mat);
+    bar.position.set(Math.cos(angle) * levelBarRadius, 0, Math.sin(angle) * levelBarRadius);
+    scene.add(bar);
+    levelBars.push(bar);
+  }
 
   // ---- Campo de estrellas ----
   const STAR_COUNT = 900;
@@ -651,6 +680,20 @@ function createCosmicMode() {
     core.rotation.y += 0.003 + energy * 0.02;
     light1.intensity = 40 + pulse * 260;
     light2.intensity = 40 + energy * 260;
+
+    for (let i = 0; i < LEVEL_BAR_COUNT; i++) {
+      let value = 0.05;
+      if (playing && freqData) {
+        const bin = Math.floor((i / LEVEL_BAR_COUNT) * (freqData.length * 0.85));
+        value = (freqData[bin] ?? 0) / 255;
+      } else {
+        value = 0.08 + 0.05 * Math.sin(t * 2 + i * 0.3);
+      }
+      const scaleY = 0.6 + value * 5;
+      const bar = levelBars[i];
+      bar.scale.y = THREE.MathUtils.lerp(bar.scale.y, scaleY, 0.4);
+      bar.position.y = (bar.scale.y - 1) * 0.5;
+    }
 
     stars.rotation.y += dt * (0.01 + energy * 0.04);
 

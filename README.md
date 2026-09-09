@@ -46,8 +46,9 @@ Seleccionables desde la pestaña **"Visualizaciones"** del panel lateral
 5. **Planetas cósmicos (psicodélica)** — dos capas con lógicas separadas,
    a propósito: de fondo, un fractal (Julia set) animado por shader que
    corre y muta solo a un patrón random cada tanto, **sin** seguir la
-   música; al centro, un "sol" estable cuyo color, escala y giro sí están
-   atados al audio, como ancla frente al caos de fondo. Alrededor orbitan
+   música, con el brillo topeado bajo para que nunca tape el centro; al
+   centro, un "sol" estable con un anillo de barras de nivel (como un
+   ecualizador) que sí siguen el ritmo de la música. Alrededor orbitan
    planetas (algunos con anillo tipo Saturno) y cruzan meteoros de punta
    a punta. Es el modo por defecto al abrir la app.
 
