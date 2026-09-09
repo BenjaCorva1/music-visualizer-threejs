@@ -59,6 +59,13 @@ Seleccionables desde la pestaña **"Visualizaciones"** del panel lateral
    sensación de inmersión, de ir avanzando hacia el fondo. El mandala,
    con la misma lógica que el fractal del modo cósmico, corre en su
    propio reloj y se mantiene tenue.
+7. **Mandala Sagrado** — geometría sagrada (anillos concéntricos +
+   líneas radiales + un "pétalo" tipo Flor de la Vida por eje) con
+   simetría de 12 ejes, coloreada con un degradado "chakra" que va de
+   rojo en el centro a violeta en el borde. El bajo controla la
+   velocidad de rotación y la pulsación radial; el volumen, el brillo
+   general y la velocidad con la que el degradado "respira"; cada una
+   de las 12 líneas radiales lee su propia banda de frecuencia.
 
 ## Estructura
 
@@ -97,7 +104,7 @@ Después abrí `http://localhost:8000` en el navegador.
 4. Mové el volumen y la barra de progreso con los sliders.
 5. Al terminar un tema, pasa solo al siguiente de la playlist.
 6. En la pestaña **"Visualizaciones"** del panel lateral, hacé click en
-   cualquiera de los 6 modos para cambiar la escena en vivo.
+   cualquiera de los 7 modos para cambiar la escena en vivo.
 7. Arrastrá con el mouse o el dedo sobre la visualización para girar la
    cámara; con la rueda o pellizcando, hacés zoom.
 8. El botón **⛶** de la barra de título oculta toda la interfaz y deja

@@ -889,6 +889,163 @@ function createSacredBodyMode() {
 }
 
 /* =========================================================
+   MODO 7 — Mandala Sagrado
+   Geometría sagrada (anillos concéntricos + líneas radiales + un
+   "pétalo" tipo Flor de la Vida por eje) con simetría radial de AXES
+   ejes, sobre la misma esfera-cielo BackSide que usan los modos
+   cósmico y del túnel de ojos. A diferencia de esos dos, acá el
+   protagonista es el degradado cromático ("chakra gradient": rojo en
+   el centro -> dorado -> verde -> azul -> violeta en el borde), no el
+   fractal ni los ojos.
+   ========================================================= */
+function createMandalaMode() {
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x030004);
+
+  // Debe coincidir con el #define AXES del shader de abajo.
+  const AXES = 12;
+
+  const mandalaUniforms = {
+    uTime: { value: 0 },
+    uBass: { value: 0 },
+    uAvg: { value: 0 },
+    uRadialPhase: { value: 0 },
+    uSpokes: { value: new Float32Array(AXES) },
+  };
+
+  const mandalaMat = new THREE.ShaderMaterial({
+    uniforms: mandalaUniforms,
+    side: THREE.BackSide,
+    depthWrite: false,
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      #define AXES ${AXES}
+      uniform float uTime;
+      uniform float uBass;
+      uniform float uAvg;
+      uniform float uRadialPhase;
+      uniform float uSpokes[AXES];
+      varying vec2 vUv;
+
+      const float PI = 3.14159265;
+
+      vec3 hsl2rgb(vec3 hsl) {
+        vec3 rgb = clamp(abs(mod(hsl.x * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+        return hsl.z + hsl.y * (rgb - 0.5) * (1.0 - abs(2.0 * hsl.z - 1.0));
+      }
+
+      // ---- DEGRADADO CROMÁTICO ("chakra gradient") ----
+      // El elemento distintivo del modo: mapea el radio (0 = centro,
+      // 1 = borde) a un hue que recorre rojo -> dorado -> verde ->
+      // azul -> violeta. uRadialPhase (que crece con uAvg en update())
+      // lo corre lentamente hacia afuera, como si el degradado "respirara".
+      vec3 chakraGradient(float r) {
+        float hue = fract(mix(0.0, 0.82, clamp(r, 0.0, 1.0)) + uRadialPhase * 0.04);
+        float light = mix(0.62, 0.38, clamp(r, 0.0, 1.0));
+        return hsl2rgb(vec3(hue, 0.85, light));
+      }
+
+      float ringGlow(float r, float radius, float width) {
+        return smoothstep(width, 0.0, abs(r - radius));
+      }
+
+      void main() {
+        vec2 uv = (vUv - 0.5) * 2.4;
+        float r = length(uv);
+        float a = atan(uv.y, uv.x);
+
+        // ---- SIMETRÍA RADIAL ----
+        // "sector" es el ángulo de una cuña de 360°/AXES. Plegar el
+        // ángulo del fragmento dentro de esa cuña con mod(...) es lo
+        // que hace que cualquier trazo dibujado en la cuña se repita
+        // AXES veces alrededor del centro (subir AXES = más ejes).
+        // uTime * uBass rota el plegado entero, así el mandala gira
+        // más rápido cuanto más fuerte pega el bajo.
+        float sector = 2.0 * PI / float(AXES);
+        float aRot = a + uTime * 0.06 * uBass;
+        float aFold = abs(mod(aRot, sector) - sector * 0.5);
+
+        // A qué eje (0..AXES-1) pertenece este fragmento, para leer su
+        // banda de frecuencia en uSpokes[] (bucle en vez de índice
+        // dinámico: así compila también en GPUs/navegadores más viejos).
+        float sectorIndexF = floor(aRot / sector + 0.0001);
+        int sectorIndex = int(mod(sectorIndexF, float(AXES)));
+        float spokeLevel = 0.0;
+        for (int i = 0; i < AXES; i++) {
+          if (i == sectorIndex) spokeLevel = uSpokes[i];
+        }
+
+        float glow = 0.0;
+
+        // Anillos concéntricos: su radio pulsa con uBass (expansión/contracción).
+        float pulse = 1.0 + sin(uTime * 0.6) * 0.06 * uBass;
+        for (int j = 1; j <= 5; j++) {
+          glow += ringGlow(r, (float(j) / 5.0) * pulse, 0.006 + uBass * 0.008);
+        }
+
+        // Líneas radiales: largo y grosor según la banda de audio de su eje.
+        float spokeLen = 0.25 + spokeLevel * 0.8;
+        float spokeThickness = 0.018 + spokeLevel * 0.02;
+        glow += smoothstep(spokeThickness, 0.0, aFold * r) * step(r, spokeLen);
+
+        // "Pétalos" tipo Flor de la Vida: un círculo por eje, repetido
+        // automáticamente por el plegado radial de arriba.
+        vec2 local = r * vec2(cos(aFold), sin(aFold));
+        glow += ringGlow(length(local - vec2(0.5, 0.09)), 0.1, 0.01) * step(r, 1.0);
+
+        glow *= smoothstep(1.15, 0.85, r); // se apaga hacia el borde
+        glow *= 0.45 + uAvg * 1.3;         // brillo general atado al volumen
+
+        vec3 color = chakraGradient(r) * glow;
+        gl_FragColor = vec4(color, 1.0);
+      }
+    `,
+  });
+
+  const mandalaSky = new THREE.Mesh(new THREE.SphereGeometry(70, 48, 32), mandalaMat);
+  scene.add(mandalaSky);
+
+  let radialPhase = 0;
+
+  function update(dt, t, freqData, avg, bass, playing) {
+    mandalaUniforms.uTime.value = t;
+    mandalaUniforms.uBass.value = playing ? bass : 0.08 + Math.sin(t * 0.8) * 0.04;
+    mandalaUniforms.uAvg.value = playing ? avg : 0.15;
+
+    radialPhase += dt * (playing ? 0.15 + avg * 0.6 : 0.03);
+    mandalaUniforms.uRadialPhase.value = radialPhase;
+
+    const spokes = mandalaUniforms.uSpokes.value;
+    for (let i = 0; i < AXES; i++) {
+      let value = 0.15;
+      if (playing && freqData) {
+        const bin = Math.floor((i / AXES) * (freqData.length * 0.85));
+        value = (freqData[bin] ?? 0) / 255;
+      } else {
+        value = 0.12 + 0.05 * Math.sin(t * 1.4 + i);
+      }
+      spokes[i] = value;
+    }
+  }
+
+  return {
+    key: "mandala",
+    label: "Mandala Sagrado",
+    desc: "Geometría sagrada radial con degradado chakra",
+    scene,
+    cameraHome: new THREE.Vector3(0, 0, 12),
+    lookAt: new THREE.Vector3(0, 0, 0),
+    update,
+  };
+}
+
+/* =========================================================
    Registro de modos + modo 3 (Anáglifo), que reutiliza la
    escena del espectro circular pero cambia la técnica de
    render (par estéreo rojo/cian), como en
@@ -899,6 +1056,7 @@ const terrainMode = createTerrainMode();
 const helpersMode = createHelpersMode();
 const cosmicMode = createCosmicMode();
 const sacredBodyMode = createSacredBodyMode();
+const mandalaMode = createMandalaMode();
 
 const anaglyphMode = {
   key: "anaglyph",
@@ -911,7 +1069,7 @@ const anaglyphMode = {
   update: circularMode.update,
 };
 
-const modes = [cosmicMode, sacredBodyMode, helpersMode, circularMode, terrainMode, anaglyphMode];
+const modes = [cosmicMode, sacredBodyMode, mandalaMode, helpersMode, circularMode, terrainMode, anaglyphMode];
 let activeMode = modes[0];
 
 function setMode(key) {
