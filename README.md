@@ -59,13 +59,15 @@ Seleccionables desde la pestaña **"Visualizaciones"** del panel lateral
    sensación de inmersión, de ir avanzando hacia el fondo. El mandala,
    con la misma lógica que el fractal del modo cósmico, corre en su
    propio reloj y se mantiene tenue.
-7. **Mandala Sagrado** — geometría sagrada (anillos concéntricos +
-   líneas radiales + un "pétalo" tipo Flor de la Vida por eje) con
-   simetría de 12 ejes, coloreada con un degradado "chakra" que va de
-   rojo en el centro a violeta en el borde. El bajo controla la
-   velocidad de rotación y la pulsación radial; el volumen, el brillo
-   general y la velocidad con la que el degradado "respira"; cada una
-   de las 12 líneas radiales lee su propia banda de frecuencia.
+7. **Mandala Sagrado** — 8 anillos independientes (no un patrón único):
+   cada uno nace con su propia fase escalonada, gira a su propia
+   velocidad y se expande en loop desde el centro hasta desvanecerse y
+   resetear con un color nuevo (hash determinístico por anillo + ciclo,
+   no un degradado fijo). En todo momento se puede seguir un anillo
+   particular en vez de percibir parpadeo general. El bajo acerca
+   levemente la fase entre anillos y acorta los ciclos (dentro de un
+   rango acotado); el volumen controla el brillo general; cada anillo
+   lee su propia banda de frecuencia para su intensidad.
 
 ## Estructura
 

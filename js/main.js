@@ -890,27 +890,29 @@ function createSacredBodyMode() {
 
 /* =========================================================
    MODO 7 — Mandala Sagrado
-   Geometría sagrada (anillos concéntricos + líneas radiales + un
-   "pétalo" tipo Flor de la Vida por eje) con simetría radial de AXES
-   ejes, sobre la misma esfera-cielo BackSide que usan los modos
-   cósmico y del túnel de ojos. A diferencia de esos dos, acá el
-   protagonista es el degradado cromático ("chakra gradient": rojo en
-   el centro -> dorado -> verde -> azul -> violeta en el borde), no el
-   fractal ni los ojos.
+   N anillos independientes (no un patrón monolítico): cada uno tiene
+   su propia fase de nacimiento, su propia velocidad de rotación y su
+   propio ciclo de expansión — a propósito escalonados (staggered)
+   entre sí, para que en cualquier instante se pueda seguir un anillo
+   particular en vez de percibir todo como un parpadeo uniforme. El
+   color de cada anillo es pseudo-aleatorio por anillo y por ciclo
+   (hash determinístico), no un degradado fijo como en la versión
+   anterior de este modo.
    ========================================================= */
 function createMandalaMode() {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x030004);
 
-  // Debe coincidir con el #define AXES del shader de abajo.
-  const AXES = 12;
+  // Debe coincidir con el #define N del shader de abajo.
+  const RING_COUNT = 8;
 
   const mandalaUniforms = {
     uTime: { value: 0 },
     uBass: { value: 0 },
     uAvg: { value: 0 },
-    uRadialPhase: { value: 0 },
-    uSpokes: { value: new Float32Array(AXES) },
+    uCycleLength: { value: 3.2 },
+    uPhaseStep: { value: 0.9 },
+    uBandLevels: { value: new Float32Array(RING_COUNT) },
   };
 
   const mandalaMat = new THREE.ShaderMaterial({
@@ -925,12 +927,13 @@ function createMandalaMode() {
       }
     `,
     fragmentShader: `
-      #define AXES ${AXES}
+      #define N ${RING_COUNT}
       uniform float uTime;
       uniform float uBass;
       uniform float uAvg;
-      uniform float uRadialPhase;
-      uniform float uSpokes[AXES];
+      uniform float uCycleLength;
+      uniform float uPhaseStep;
+      uniform float uBandLevels[N];
       varying vec2 vUv;
 
       const float PI = 3.14159265;
@@ -940,69 +943,76 @@ function createMandalaMode() {
         return hsl.z + hsl.y * (rgb - 0.5) * (1.0 - abs(2.0 * hsl.z - 1.0));
       }
 
-      // ---- DEGRADADO CROMÁTICO ("chakra gradient") ----
-      // El elemento distintivo del modo: mapea el radio (0 = centro,
-      // 1 = borde) a un hue que recorre rojo -> dorado -> verde ->
-      // azul -> violeta. uRadialPhase (que crece con uAvg en update())
-      // lo corre lentamente hacia afuera, como si el degradado "respirara".
-      vec3 chakraGradient(float r) {
-        float hue = fract(mix(0.0, 0.82, clamp(r, 0.0, 1.0)) + uRadialPhase * 0.04);
-        float light = mix(0.62, 0.38, clamp(r, 0.0, 1.0));
-        return hsl2rgb(vec3(hue, 0.85, light));
-      }
-
-      float ringGlow(float r, float radius, float width) {
-        return smoothstep(width, 0.0, abs(r - radius));
+      // ---- COLOR ALEATORIO POR ELEMENTO ----
+      // Hash determinístico (no random() de GLSL): la misma entrada
+      // siempre da el mismo resultado. Se lo alimenta con el índice del
+      // anillo + su número de ciclo (nunca con uTime continuo), así el
+      // color de un anillo se mantiene fijo durante todo un ciclo de
+      // expansión y solo "salta" a uno nuevo cuando ese anillo se resetea.
+      float hash1(float n) {
+        return fract(sin(n * 127.1) * 43758.5453123);
       }
 
       void main() {
         vec2 uv = (vUv - 0.5) * 2.4;
         float r = length(uv);
-        float a = atan(uv.y, uv.x);
+        float ang = atan(uv.y, uv.x);
 
-        // ---- SIMETRÍA RADIAL ----
-        // "sector" es el ángulo de una cuña de 360°/AXES. Plegar el
-        // ángulo del fragmento dentro de esa cuña con mod(...) es lo
-        // que hace que cualquier trazo dibujado en la cuña se repita
-        // AXES veces alrededor del centro (subir AXES = más ejes).
-        // uTime * uBass rota el plegado entero, así el mandala gira
-        // más rápido cuanto más fuerte pega el bajo.
-        float sector = 2.0 * PI / float(AXES);
-        float aRot = a + uTime * 0.06 * uBass;
-        float aFold = abs(mod(aRot, sector) - sector * 0.5);
+        vec3 color = vec3(0.0);
 
-        // A qué eje (0..AXES-1) pertenece este fragmento, para leer su
-        // banda de frecuencia en uSpokes[] (bucle en vez de índice
-        // dinámico: así compila también en GPUs/navegadores más viejos).
-        float sectorIndexF = floor(aRot / sector + 0.0001);
-        int sectorIndex = int(mod(sectorIndexF, float(AXES)));
-        float spokeLevel = 0.0;
-        for (int i = 0; i < AXES; i++) {
-          if (i == sectorIndex) spokeLevel = uSpokes[i];
+        for (int i = 0; i < N; i++) {
+          float fi = float(i);
+
+          // ---- ESCALONAMIENTO (staggered timing) ----
+          // Cada anillo nace uPhaseStep segundos después que el
+          // anterior: phase_i = i * uPhaseStep. localTime es el reloj
+          // propio del anillo, en 0 en su nacimiento — por eso todos
+          // están en un punto distinto de su ciclo en todo momento.
+          float phase_i = fi * uPhaseStep;
+          float localTime = max(uTime - phase_i, 0.0);
+
+          // Velocidad de rotación propia por anillo (0.7x a 1.3x la
+          // base), vía hash — para que ninguno gire sincronizado con
+          // otro y se lo pueda distinguir a simple vista.
+          float speed_i = 0.35 * (0.7 + hash1(fi) * 0.6);
+          float angleOffset = uTime * speed_i + fi * 1.7;
+
+          // ---- EXPANSIÓN CONTINUA EN LOOP ----
+          // cycleT recorre 0..uCycleLength una y otra vez (el "reloj de
+          // vuelta" del anillo); cycleIndex cuenta cuántas vueltas ya
+          // dio, y es lo que alimenta el hash de color.
+          float cycleT = mod(localTime, uCycleLength);
+          float cycleIndex = floor(localTime / uCycleLength);
+
+          float minR = 0.08;
+          float maxR = 1.15;
+          float radius_i = mix(minR, maxR, cycleT / uCycleLength);
+
+          // Aparece (fade-in) al nacer cada vuelta y desaparece
+          // (fade-out) antes de resetear el radio — nunca hay un "pop".
+          float fadeIn = smoothstep(0.0, uCycleLength * 0.18, cycleT);
+          float fadeOut = 1.0 - smoothstep(uCycleLength * 0.78, uCycleLength, cycleT);
+          float appear = fadeIn * fadeOut;
+
+          float hue = hash1(fi * 3.1 + cycleIndex * 13.37 + 0.5);
+          vec3 ringColor = hsl2rgb(vec3(hue, 0.75, 0.55));
+
+          // Muescas alrededor del anillo (cantidad también por hash):
+          // sin esto, un círculo liso rotando se vería estático.
+          float dashCount = 6.0 + floor(hash1(fi + 50.0) * 6.0);
+          float a2 = ang + angleOffset;
+          float dashSeg = 2.0 * PI / dashCount;
+          float dashPhase = mod(a2, dashSeg);
+          float dash = smoothstep(dashSeg * 0.55, dashSeg * 0.25, dashPhase);
+
+          float bandWidth = 0.012 + 0.012 * appear;
+          float band = smoothstep(bandWidth, 0.0, abs(r - radius_i));
+
+          float level = uBandLevels[i];
+          color += ringColor * band * dash * appear * (0.4 + level * 1.4);
         }
 
-        float glow = 0.0;
-
-        // Anillos concéntricos: su radio pulsa con uBass (expansión/contracción).
-        float pulse = 1.0 + sin(uTime * 0.6) * 0.06 * uBass;
-        for (int j = 1; j <= 5; j++) {
-          glow += ringGlow(r, (float(j) / 5.0) * pulse, 0.006 + uBass * 0.008);
-        }
-
-        // Líneas radiales: largo y grosor según la banda de audio de su eje.
-        float spokeLen = 0.25 + spokeLevel * 0.8;
-        float spokeThickness = 0.018 + spokeLevel * 0.02;
-        glow += smoothstep(spokeThickness, 0.0, aFold * r) * step(r, spokeLen);
-
-        // "Pétalos" tipo Flor de la Vida: un círculo por eje, repetido
-        // automáticamente por el plegado radial de arriba.
-        vec2 local = r * vec2(cos(aFold), sin(aFold));
-        glow += ringGlow(length(local - vec2(0.5, 0.09)), 0.1, 0.01) * step(r, 1.0);
-
-        glow *= smoothstep(1.15, 0.85, r); // se apaga hacia el borde
-        glow *= 0.45 + uAvg * 1.3;         // brillo general atado al volumen
-
-        vec3 color = chakraGradient(r) * glow;
+        color *= 0.55 + uAvg * 1.1; // brillo general atado al volumen
         gl_FragColor = vec4(color, 1.0);
       }
     `,
@@ -1011,33 +1021,45 @@ function createMandalaMode() {
   const mandalaSky = new THREE.Mesh(new THREE.SphereGeometry(70, 48, 32), mandalaMat);
   scene.add(mandalaSky);
 
-  let radialPhase = 0;
+  // uPhaseStep/uCycleLength se calculan a partir de estos valores YA
+  // suavizados (no del bass/avg crudo): si cambiaran de golpe frame a
+  // frame, phase_i = i*uPhaseStep saltaría para cada anillo y rompería
+  // el escalonamiento en vez de simplemente acelerarlo/frenarlo.
+  let smoothBass = 0;
+  let smoothAvg = 0;
 
   function update(dt, t, freqData, avg, bass, playing) {
+    const targetBass = playing ? bass : 0.1;
+    const targetAvg = playing ? avg : 0.15;
+    const smoothing = Math.min(dt * 2, 1);
+    smoothBass += (targetBass - smoothBass) * smoothing;
+    smoothAvg += (targetAvg - smoothAvg) * smoothing;
+
     mandalaUniforms.uTime.value = t;
-    mandalaUniforms.uBass.value = playing ? bass : 0.08 + Math.sin(t * 0.8) * 0.04;
-    mandalaUniforms.uAvg.value = playing ? avg : 0.15;
+    mandalaUniforms.uBass.value = smoothBass;
+    mandalaUniforms.uAvg.value = smoothAvg;
+    // Más bass = anillos algo más próximos en el tiempo / ciclos algo
+    // más cortos, dentro de un rango acotado (±35% y ±25%).
+    mandalaUniforms.uPhaseStep.value = 0.9 * (1 - smoothBass * 0.35);
+    mandalaUniforms.uCycleLength.value = 3.2 * (1 - smoothBass * 0.25);
 
-    radialPhase += dt * (playing ? 0.15 + avg * 0.6 : 0.03);
-    mandalaUniforms.uRadialPhase.value = radialPhase;
-
-    const spokes = mandalaUniforms.uSpokes.value;
-    for (let i = 0; i < AXES; i++) {
+    const levels = mandalaUniforms.uBandLevels.value;
+    for (let i = 0; i < RING_COUNT; i++) {
       let value = 0.15;
       if (playing && freqData) {
-        const bin = Math.floor((i / AXES) * (freqData.length * 0.85));
+        const bin = Math.floor((i / RING_COUNT) * (freqData.length * 0.9));
         value = (freqData[bin] ?? 0) / 255;
       } else {
-        value = 0.12 + 0.05 * Math.sin(t * 1.4 + i);
+        value = 0.12 + 0.05 * Math.sin(t * 1.3 + i);
       }
-      spokes[i] = value;
+      levels[i] = value;
     }
   }
 
   return {
     key: "mandala",
     label: "Mandala Sagrado",
-    desc: "Geometría sagrada radial con degradado chakra",
+    desc: "Anillos escalonados que se expanden con color propio",
     scene,
     cameraHome: new THREE.Vector3(0, 0, 12),
     lookAt: new THREE.Vector3(0, 0, 0),
