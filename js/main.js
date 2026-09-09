@@ -421,7 +421,7 @@ const anaglyphMode = {
   update: circularMode.update,
 };
 
-const modes = [circularMode, terrainMode, anaglyphMode, helpersMode];
+const modes = [helpersMode, circularMode, terrainMode, anaglyphMode];
 let activeMode = modes[0];
 
 function setMode(key) {
@@ -468,7 +468,7 @@ function resizeRenderer() {
 }
 window.addEventListener("resize", resizeRenderer);
 resizeRenderer();
-setMode("circular");
+setMode("helpers");
 
 // ---------- Loop de animación ----------
 function animate() {
