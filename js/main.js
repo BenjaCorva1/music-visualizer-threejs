@@ -33,6 +33,8 @@ const vizModeLabel = document.getElementById("viz-mode-label");
 const dropHint = document.getElementById("drop-hint");
 const visualizerArea = document.querySelector(".visualizer-area");
 const tabButtons = document.querySelectorAll(".tab-btn");
+const wmpWindow = document.querySelector(".wmp-window");
+const btnMaximize = document.getElementById("btn-maximize");
 
 // ---------- Estado del reproductor ----------
 const playlist = []; // { name, url }
@@ -577,6 +579,16 @@ function playPrev() {
   const prev = (currentIndex - 1 + playlist.length) % playlist.length;
   loadTrack(prev, true);
 }
+
+// ---------- Maximizar / restaurar ventana ----------
+// La ventana arranca maximizada (ver .wmp-window en el CSS); este botón
+// alterna con la clase .restored, que la vuelve al tamaño clásico de 820px.
+btnMaximize.addEventListener("click", () => {
+  const isNowRestored = wmpWindow.classList.toggle("restored");
+  btnMaximize.textContent = isNowRestored ? "□" : "❐";
+  btnMaximize.title = isNowRestored ? "Maximizar" : "Restaurar";
+  resizeRenderer();
+});
 
 // ---------- Eventos de UI ----------
 btnOpen.addEventListener("click", () => fileInput.click());
