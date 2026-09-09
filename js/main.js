@@ -417,7 +417,7 @@ function createHelpersMode() {
 }
 
 /* =========================================================
-   MODO 5 — Planetas cósmicos (trippy)
+   MODO 5 — Planetas cósmicos (psicodélica)
    Copia del "Radar de helpers" (mismos ArrowHelper, PolarGridHelper,
    AxesHelper, luces con PointLightHelper y CameraHelper) sumándole
    un sistema planetario orbitando, un campo de estrellas y colores
@@ -446,7 +446,7 @@ function createCosmicMode() {
   }
 
   // El "sol" central: mismo icosaedro del radar de helpers, pero con
-  // color emissive que gira por el círculo cromático (efecto trippy).
+  // color emissive que gira por el círculo cromático (efecto psicodélico).
   const coreGeo = new THREE.IcosahedronGeometry(1.1, 1);
   const coreMat = new THREE.MeshStandardMaterial({
     color: 0xffffff,
@@ -591,7 +591,7 @@ function createCosmicMode() {
 
   return {
     key: "cosmic",
-    label: "Planetas cósmicos (trippy)",
+    label: "Planetas cósmicos (psicodélica)",
     desc: "Planetas orbitando + colores psicodélicos",
     scene,
     cameraHome: new THREE.Vector3(0, 8, 20),

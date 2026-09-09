@@ -43,7 +43,7 @@ Seleccionables desde la pestaña **"Visualizaciones"** del panel lateral
    combina `ArrowHelper`, `PolarGridHelper`, `AxesHelper`,
    `PointLightHelper` y `CameraHelper` reaccionando al audio, con estética
    de "modo debug". Es el modo por defecto al abrir la app.
-5. **Planetas cósmicos (trippy)** — copia del "Radar de helpers" (mismos
+5. **Planetas cósmicos (psicodélica)** — copia del "Radar de helpers" (mismos
    `ArrowHelper`, `PolarGridHelper`, luces) sumándole un sistema planetario
    orbitando (algunos con anillo tipo Saturno), un campo de estrellas y
    colores psicodélicos que ciclan con el tiempo y el audio.
