@@ -1224,6 +1224,213 @@ function createMandalaMode() {
 }
 
 /* =========================================================
+   MODO 8 — Ser Caleidoscópico
+   Una persona (primitivas de baja poligonización) multiplicada por
+   simetría de espejo: 8 copias de la misma figura, todas centradas en
+   el mismo punto pero rotadas en abanico, vibrando con el audio —
+   el efecto "caleidoscopio" acá se logra por duplicación/rotación de
+   geometría, no por shader 2D. Alrededor suben tiras de energía
+   fluida: curvas Catmull-Rom recalculadas en cada actualización (no
+   franjas rectas como en otros modos) con una textura que fluye a lo
+   largo de cada tira, para que se vean más orgánicas/realistas que un
+   streak recto.
+   ========================================================= */
+function createKaleidoscopeMode() {
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x04010a);
+
+  scene.add(new THREE.AmbientLight(0x332244, 1.2));
+  const light1 = new THREE.PointLight(0x66aaff, 20, 25);
+  light1.position.set(3, 3, 3);
+  scene.add(light1);
+  const light2 = new THREE.PointLight(0xff66aa, 20, 25);
+  light2.position.set(-3, 2, -3);
+  scene.add(light2);
+
+  // ---- Figura base (primitivas, pose Vitruvio) ----
+  function buildHumanFigure(mat) {
+    const group = new THREE.Group();
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.32, 14, 14), mat);
+    head.position.y = 1.35;
+    group.add(head);
+
+    const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 1.05, 4, 8), mat);
+    torso.position.y = 0.55;
+    group.add(torso);
+
+    const armLength = 1.0;
+    const armL = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, armLength, 4, 8), mat);
+    armL.rotation.z = Math.PI / 2;
+    armL.position.set(-(armLength / 2 + 0.32), 0.95, 0);
+    group.add(armL);
+    const armR = armL.clone();
+    armR.position.x *= -1;
+    group.add(armR);
+
+    const legLength = 1.1;
+    const legL = new THREE.Mesh(new THREE.CapsuleGeometry(0.12, legLength, 4, 8), mat);
+    legL.position.set(-0.2, -legLength / 2, 0);
+    group.add(legL);
+    const legR = legL.clone();
+    legR.position.x *= -1;
+    group.add(legR);
+
+    return group;
+  }
+
+  const figureMat = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.85,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+
+  const KALEIDO_COPIES = 8;
+  const kaleidoGroup = new THREE.Group();
+  scene.add(kaleidoGroup);
+  const figureCopies = [];
+  for (let i = 0; i < KALEIDO_COPIES; i++) {
+    const copy = buildHumanFigure(figureMat);
+    copy.rotation.y = (i / KALEIDO_COPIES) * Math.PI * 2;
+    kaleidoGroup.add(copy);
+    figureCopies.push(copy);
+  }
+
+  // ---- Tiras de energía fluida ----
+  // Textura con 3 pulsos de brillo que se repite a lo largo del tubo;
+  // animar tex.offset.x da la sensación de energía corriendo por la
+  // tira, sin tener que redibujar nada.
+  function makeFlowTexture() {
+    const w = 128;
+    const h = 8;
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    for (let x = 0; x < w; x++) {
+      const p = x / w;
+      const b = Math.sin(p * Math.PI * 2 * 3) * 0.5 + 0.5;
+      ctx.fillStyle = `rgba(255,255,255,${(0.12 + b * 0.88).toFixed(3)})`;
+      ctx.fillRect(x, 0, 1, h);
+    }
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(3, 1);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+  const baseFlowTexture = makeFlowTexture();
+
+  const STRAND_COUNT = 6;
+  const TUBE_SEGMENTS = 22;
+  const RADIAL_SEGMENTS = 5;
+  const STRAND_POINTS = 10;
+
+  const strands = [];
+  for (let i = 0; i < STRAND_COUNT; i++) {
+    const hue = i / STRAND_COUNT;
+    const tex = baseFlowTexture.clone();
+    tex.needsUpdate = true;
+    const mat = new THREE.MeshBasicMaterial({
+      map: tex,
+      color: new THREE.Color().setHSL(hue, 0.85, 0.6),
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const placeholderCurve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 1, 0)]);
+    const mesh = new THREE.Mesh(new THREE.TubeGeometry(placeholderCurve, 8, 0.045, RADIAL_SEGMENTS, false), mat);
+    scene.add(mesh);
+    strands.push({
+      mesh,
+      mat,
+      tex,
+      hue,
+      baseRadius: 1.6 + i * 0.35,
+      turns: 1.4 + (i % 3) * 0.5,
+      phase: (i / STRAND_COUNT) * Math.PI * 2,
+      speed: 0.25 + (i % 4) * 0.08,
+      flowSpeed: 0.6 + (i % 3) * 0.25,
+    });
+  }
+
+  function updateStrandGeometry(strand, t, bass) {
+    const points = [];
+    for (let s = 0; s <= STRAND_POINTS; s++) {
+      const u = s / STRAND_POINTS;
+      const height = -1.3 + u * 6.4;
+      const swirl = strand.phase + u * strand.turns * Math.PI * 2 + t * strand.speed;
+      const wobble = Math.sin(t * 1.1 + u * 5 + strand.phase) * (0.35 + bass * 0.7);
+      const radius = strand.baseRadius + wobble;
+      points.push(new THREE.Vector3(Math.cos(swirl) * radius, height, Math.sin(swirl) * radius));
+    }
+    const curve = new THREE.CatmullRomCurve3(points);
+    strand.mesh.geometry.dispose();
+    strand.mesh.geometry = new THREE.TubeGeometry(curve, TUBE_SEGMENTS, 0.045, RADIAL_SEGMENTS, false);
+  }
+
+  let hue0 = 0;
+  // Recalcular la curva de cada tira a ~30fps (no en cada frame de
+  // render) alcanza para que se vea fluido y evita generar/descartar
+  // geometría al doble de ritmo del necesario.
+  let geomTimer = 0;
+
+  function update(dt, t, freqData, avg, bass, playing) {
+    const energy = playing ? avg : 0.12;
+    const pulse = playing ? bass : 0.1 + Math.sin(t * 1.4) * 0.04;
+
+    // ---- Figura caleidoscópica: vibra con el bajo ----
+    hue0 = (hue0 + dt * (playing ? 0.05 + bass * 0.4 : 0.01)) % 1;
+    figureMat.color.setHSL(hue0, 0.7, 0.65);
+    kaleidoGroup.rotation.y += dt * (0.05 + energy * 0.1);
+    figureCopies.forEach((copy, i) => {
+      const jitter = Math.sin(t * 24 + i * 1.7) * pulse * 0.06;
+      copy.position.y = jitter;
+      copy.scale.setScalar(1 + pulse * 0.35 + Math.sin(t * 3 + i) * 0.03);
+    });
+
+    // ---- Tiras de energía ----
+    geomTimer += dt;
+    const shouldUpdateGeometry = geomTimer > 0.033;
+    if (shouldUpdateGeometry) geomTimer = 0;
+
+    strands.forEach((strand, i) => {
+      if (shouldUpdateGeometry) updateStrandGeometry(strand, t, pulse);
+      strand.tex.offset.x -= dt * strand.flowSpeed * (1 + energy * 1.5);
+
+      let level = 0.2;
+      if (playing && freqData) {
+        const bin = Math.floor((i / STRAND_COUNT) * (freqData.length * 0.85));
+        level = (freqData[bin] ?? 0) / 255;
+      } else {
+        level = 0.15 + 0.05 * Math.sin(t * 1.6 + i);
+      }
+      strand.mat.opacity = 0.5 + level * 0.5;
+      strand.mat.color.setHSL((strand.hue + hue0 * 0.15) % 1, 0.85, 0.55 + level * 0.15);
+    });
+
+    light1.intensity = 15 + pulse * 120;
+    light2.intensity = 15 + energy * 120;
+  }
+
+  return {
+    key: "kaleido",
+    label: "Ser Caleidoscópico",
+    desc: "Energías fluidas + figura caleidoscópica vibrando en el centro",
+    scene,
+    cameraHome: new THREE.Vector3(0, 2, 9),
+    lookAt: new THREE.Vector3(0, 1, 0),
+    update,
+    bloomOverride: { strength: 0.75, radius: 0.45, threshold: 0.25 },
+  };
+}
+
+/* =========================================================
    Registro de modos + modo 3 (Anáglifo), que reutiliza la
    escena del espectro circular pero cambia la técnica de
    render (par estéreo rojo/cian), como en
@@ -1235,6 +1442,7 @@ const helpersMode = createHelpersMode();
 const cosmicMode = createCosmicMode();
 const sacredBodyMode = createSacredBodyMode();
 const mandalaMode = createMandalaMode();
+const kaleidoscopeMode = createKaleidoscopeMode();
 
 const anaglyphMode = {
   key: "anaglyph",
@@ -1247,7 +1455,16 @@ const anaglyphMode = {
   update: circularMode.update,
 };
 
-const modes = [cosmicMode, sacredBodyMode, mandalaMode, helpersMode, circularMode, terrainMode, anaglyphMode];
+const modes = [
+  cosmicMode,
+  sacredBodyMode,
+  mandalaMode,
+  kaleidoscopeMode,
+  helpersMode,
+  circularMode,
+  terrainMode,
+  anaglyphMode,
+];
 let activeMode = modes[0];
 
 function setMode(key) {

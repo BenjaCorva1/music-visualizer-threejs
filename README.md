@@ -74,6 +74,15 @@ Seleccionables desde la pestaña **"Visualizaciones"** del panel lateral
    un tap o la flecha derecha ciclan entre 4 variantes (paleta,
    separación de fase, orden geométrico, figura visible u oculta) con
    una transición de ~0.8s, no un corte abrupto.
+8. **Ser Caleidoscópico** — una persona (primitivas de baja
+   poligonización) multiplicada por simetría de espejo: 8 copias de la
+   misma figura, centradas en el mismo punto pero rotadas en abanico,
+   vibrando con el bajo. Alrededor suben 6 tiras de energía fluida
+   (curvas Catmull-Rom recalculadas ~30 veces por segundo, no franjas
+   rectas) con una textura que fluye a lo largo de cada una — más
+   orgánico que un streak recto. El bajo controla la vibración de la
+   figura y la ondulación de las tiras; el volumen, la velocidad de
+   flujo; cada tira lee su propia banda de frecuencia para brillo/color.
 
 ## Estructura
 
@@ -112,7 +121,7 @@ Después abrí `http://localhost:8000` en el navegador.
 4. Mové el volumen y la barra de progreso con los sliders.
 5. Al terminar un tema, pasa solo al siguiente de la playlist.
 6. En la pestaña **"Visualizaciones"** del panel lateral, hacé click en
-   cualquiera de los 7 modos para cambiar la escena en vivo.
+   cualquiera de los 8 modos para cambiar la escena en vivo.
 7. Arrastrá con el mouse o el dedo sobre la visualización para girar la
    cámara; con la rueda o pellizcando, hacés zoom.
 8. El botón **⛶** de la barra de título oculta toda la interfaz y deja
